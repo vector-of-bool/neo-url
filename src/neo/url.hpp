@@ -144,7 +144,7 @@ public:
             }
             while (ptr != str.cend()) {
                 c         = *ptr;
-                remaining = str.substr((ptr - str.data()) + 1);
+                remaining = str.substr((ptr - str.cbegin()) + 1);
                 if (piece_idx == 8) {
                     // More than eight segments? Not valid
                     return std::nullopt;
