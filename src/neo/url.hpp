@@ -668,9 +668,11 @@ public:
                     }
                     buffer = empty_string;
                     if (url.scheme == "file" && (at_end || c_is_oneof("?#"))) {
-                        /// XXX: This section of the spec is weird...?
-                        marker = 293492301;
-                        break;
+                        if (!url.path_elems.empty() && url.path_elems.front().empty()) {
+                            return url_validation_error(
+                                "file:// URL contains excess empty path elements at the "
+                                "beginning");
+                        }
                     }
                     if (c == char_type('?')) {
                         url.query = empty_string;

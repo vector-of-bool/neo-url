@@ -78,6 +78,10 @@ TEST_CASE("Parse a URL") {
          .scheme = "http",
          .host   = "localhost",
          .path   = "/foo%20bar"},
+        {.given  = "file:///home/user/thing.txt",
+         .scheme = "file",
+         .host   = "",
+         .path   = "/home/user/thing.txt"},
     }));
 
     auto result = neo::url::parse(expect.given);
