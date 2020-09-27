@@ -41,6 +41,7 @@ TEST_CASE("Parse a URL") {
         std::string      fragment       = "";
         std::string      query          = "";
         int              effective_port = 0;
+        std::string      to_string_res{given};
     };
 
     const case_ expect = GENERATE(Catch::Generators::values<case_>({
@@ -61,9 +62,18 @@ TEST_CASE("Parse a URL") {
          .host   = "google.com",
          .path   = "/mail/inbox"},
         {.given = "https://google.com/", .scheme = "https", .host = "google.com", .path = "/"},
-        {.given = "https://google.com", .scheme = "https", .host = "google.com", .path = "/"},
+        {.given         = "https://google.com",
+         .scheme        = "https",
+         .host          = "google.com",
+         .path          = "/",
+         .to_string_res = "https://google.com/"},
         {.given = "http://localhost/foo", .scheme = "http", .host = "localhost", .path = "/foo"},
-        {.given = "http://localhost:80/foo", .scheme = "http", .host = "localhost", .path = "/foo"},
+        {.given  = "http://localhost:80/foo",
+         .scheme = "http",
+         .host   = "localhost",
+         .path   = "/foo",
+         // Drops the port because it is the HTTP default:
+         .to_string_res = "http://localhost/foo"},
         {.given  = "http://localhost:81/foo",
          .scheme = "http",
          .host   = "localhost",
@@ -92,4 +102,5 @@ TEST_CASE("Parse a URL") {
     if (expect.effective_port) {
         CHECK(result.port_or_default_port() == expect.effective_port);
     }
+    CHECK(result.to_string() == expect.to_string_res);
 }

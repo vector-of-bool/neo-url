@@ -776,13 +776,16 @@ public:
             acc.append(*host);
             if (port) {
                 acc.push_back(':');
-                acc.append(std::to_string(int(port)));
+                acc.append(std::to_string(int(*port)));
             }
         } else if (scheme == "file") {
             acc.push_back('/');
             acc.push_back('/');
         }
-        acc.push_back('/');
+        if (!host && path_elems.size() > 1 && path_elems[0].empty()) {
+            acc.push_back('/');
+            acc.push_back('.');
+        }
         acc.append(path_string());
         if (query) {
             acc.push_back('?');
