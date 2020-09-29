@@ -1,5 +1,7 @@
 #pragma once
 
+#include <neo/string.hpp>
+
 #include <cstddef>
 #include <iterator>
 #include <string_view>
@@ -110,12 +112,12 @@ struct www_form_pct_encode_set {
     }
 };
 
-template <typename Ret, typename String>
-requires(!std::is_same_v<Ret, String>) constexpr Ret percent_decode(String&& str) {
-    using char_type = typename Ret::value_type;
+template <typename String>
+constexpr string_type_t<String> percent_decode(const String& str) {
+    using char_type = typename string_type_t<String>::value_type;
     using std::byte;
     // 1: Empty sequence
-    Ret ret;
+    auto ret = make_empty_string_from(str);
     ret.reserve(str.size());
     // 2: For each byte
     for (auto c_it = str.cbegin(); c_it != str.cend(); ++c_it) {
@@ -154,16 +156,11 @@ requires(!std::is_same_v<Ret, String>) constexpr Ret percent_decode(String&& str
     return ret;
 }
 
-template <typename S>
-constexpr S percent_decode(const S& str) {
-    return percent_decode<S, const S&>(str);
-}
-
-template <typename EncodeSet, typename Ret, typename String>
-requires(!std::is_same_v<Ret, String>) constexpr Ret percent_encode(const String& str) {
-    using char_type = typename Ret::value_type;
+template <typename EncodeSet, typename String>
+constexpr string_type_t<String> percent_encode(const String& str) {
+    using char_type = typename string_type_t<String>::value_type;
     using std::byte;
-    Ret ret;
+    auto ret = make_empty_string_from(str);
     if (str.size() >= 3) {
         if (byte(str[0]) == byte('&') && byte(str[1]) == byte('#')
             && byte(str[str.size() - 1]) == byte(';')) {
@@ -198,11 +195,6 @@ requires(!std::is_same_v<Ret, String>) constexpr Ret percent_encode(const String
         }
     }
     return ret;
-}
-
-template <typename EncodeSet, typename S>
-constexpr S percent_encode(const S& s) {
-    return percent_encode<EncodeSet, S, const S&>(s);
 }
 
 }  // namespace neo

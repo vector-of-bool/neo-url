@@ -41,7 +41,7 @@ TEST_CASE("Parse a URL") {
         std::string      fragment       = "";
         std::string      query          = "";
         int              effective_port = 0;
-        std::string      to_string_res{given};
+        std::string      to_string_res  = std::string(given);
     };
 
     const case_ expect = GENERATE(Catch::Generators::values<case_>({

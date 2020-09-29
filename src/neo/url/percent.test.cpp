@@ -12,7 +12,7 @@ TEST_CASE("Percent-encode some strings") {
         {"foo", "foo"},
         {"foo%20bar", "foo bar"},
     }));
-    auto actual = neo::percent_decode<std::string>(cur.in);
+    auto actual = neo::percent_decode(cur.in);
     CAPTURE(cur.in);
     CHECK(actual == cur.expect);
     auto reencoded = neo::percent_encode<neo::fragment_pct_encode_set>(actual);
