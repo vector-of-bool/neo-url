@@ -630,9 +630,7 @@ public:
                         --ptr;
                     }
                 } else {
-                    // Fires assertion:
-                    marker = 533353;
-                    break;
+                    // End of input. We're done!
                 }
                 goto next;
             }

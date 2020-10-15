@@ -92,6 +92,8 @@ TEST_CASE("Parse a URL") {
          .scheme = "file",
          .host   = "",
          .path   = "/home/user/thing.txt"},
+        {.given = "http://example.com", .scheme = "http", .host = "example.com"},
+        {.given = "git+http://example.com", .scheme = "git+http", .host = "example.com"},
     }));
 
     auto result = neo::url::parse(expect.given);
