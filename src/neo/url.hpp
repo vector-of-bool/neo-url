@@ -274,7 +274,7 @@ public:
             }
 
             return host_t{.kind   = kind::opaque,
-                          .string = percent_encode<c0_control_pct_encode_set, string_type>(str)};
+                          .string = percent_encode<c0_control_pct_encode_set>(str)};
         }
     };
 
@@ -630,9 +630,7 @@ public:
                         --ptr;
                     }
                 } else {
-                    // Fires assertion:
-                    marker = 533353;
-                    break;
+                    // End of input. We're done!
                 }
                 goto next;
             }
@@ -668,9 +666,11 @@ public:
                     }
                     buffer = empty_string;
                     if (url.scheme == "file" && (at_end || c_is_oneof("?#"))) {
-                        /// XXX: This section of the spec is weird...?
-                        marker = 293492301;
-                        break;
+                        if (!url.path_elems.empty() && url.path_elems.front().empty()) {
+                            return url_validation_error(
+                                "file:// URL contains excess empty path elements at the "
+                                "beginning");
+                        }
                     }
                     if (c == char_type('?')) {
                         url.query = empty_string;
@@ -687,8 +687,7 @@ public:
                     } else if (!pct_check()) {
                         return url_validation_error("Invalid %-sequence in URL path.");
                     } else {
-                        auto enc
-                            = percent_encode<path_pct_encode_set, string_type>(view_type(&c, 1));
+                        auto enc = percent_encode<path_pct_encode_set>(view_type(&c, 1));
                         buffer.append(enc);
                     }
                 }
@@ -708,9 +707,8 @@ public:
                         return url_validation_error("Invalid %-sequence in URL query.");
                     }
                     auto enc = is_special
-                        ? percent_encode<special_query_pct_encode_set, string_type>(
-                            view_type(&c, 1))
-                        : percent_encode<query_pct_encode_set, string_type>(view_type(&c, 1));
+                        ? percent_encode<special_query_pct_encode_set>(view_type(&c, 1))
+                        : percent_encode<query_pct_encode_set>(view_type(&c, 1));
                     url.query->append(enc);
                 }
                 goto next;
@@ -722,8 +720,7 @@ public:
                     if (!pct_check()) {
                         return url_validation_error("Invalid %-sequence in URL fragment segment.");
                     }
-                    auto enc
-                        = percent_encode<fragment_pct_encode_set, string_type>(view_type(&c, 1));
+                    auto enc = percent_encode<fragment_pct_encode_set>(view_type(&c, 1));
                     url.fragment->append(enc);
                 }
                 goto next;
@@ -774,13 +771,16 @@ public:
             acc.append(*host);
             if (port) {
                 acc.push_back(':');
-                acc.append(std::to_string(int(port)));
+                acc.append(std::to_string(int(*port)));
             }
         } else if (scheme == "file") {
             acc.push_back('/');
             acc.push_back('/');
         }
-        acc.push_back('/');
+        if (!host && path_elems.size() > 1 && path_elems[0].empty()) {
+            acc.push_back('/');
+            acc.push_back('.');
+        }
         acc.append(path_string());
         if (query) {
             acc.push_back('?');
