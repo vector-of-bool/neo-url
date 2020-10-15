@@ -92,7 +92,12 @@ TEST_CASE("Parse a URL") {
          .scheme = "file",
          .host   = "",
          .path   = "/home/user/thing.txt"},
-        {.given = "http://example.com", .scheme = "http", .host = "example.com"},
+        {.given  = "http://example.com",
+         .scheme = "http",
+         .host   = "example.com",
+         // HTTP brings the path back
+         .path          = "/",
+         .to_string_res = "http://example.com/"},
         {.given = "git+http://example.com", .scheme = "git+http", .host = "example.com"},
     }));
 
