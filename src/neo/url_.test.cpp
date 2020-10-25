@@ -27,6 +27,14 @@ TEST_CASE("Parse an ipv6 host") {
     }
 }
 
+TEST_CASE("Bad URLs") {
+    const std::string_view given = GENERATE(Catch::Generators::values<std::string_view>({
+        "",
+    }));
+    CAPTURE(given);
+    CHECK_THROWS_AS(neo::url::parse(given), neo::url_validation_error);
+}
+
 TEST_CASE("Parse a URL") {
     // Parse a simple url:
     using std::nullopt;

@@ -326,6 +326,10 @@ public:
     }
 
     static std::variant<basic_url, url_validation_error> try_parse(view_type input) noexcept {
+        if (input.empty()) {
+            return url_validation_error("Empty string given for URL");
+        }
+
         bool at_flag           = false;
         bool square_flag       = false;
         bool password_tok_seen = false;
