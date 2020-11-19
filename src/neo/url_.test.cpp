@@ -286,18 +286,6 @@ TEST_CASE("Parse a URL") {
     CHECK(result.scheme == expect.scheme);
     CHECK(result.username == expect.username);
     CHECK(result.password == expect.password);
-    // CHECK(result.path_string() == expect.path);
-    if (expect.effective_port) {
-        CHECK(result.port_or_default_port() == expect.effective_port);
-    }
-    // CHECK(result.to_string() == expect.to_string_res);
-
-    result = neo::url_view::split(expect.given).normalize();
-    CHECK(result.host.value_or("[null]") == expect.host.value_or("[null]"));
-    CHECK(result.port.value_or(0) == expect.port.value_or(0));
-    CHECK(result.scheme == expect.scheme);
-    CHECK(result.username == expect.username);
-    CHECK(result.password == expect.password);
     CHECK(result.path_string() == expect.path);
     if (expect.effective_port) {
         CHECK(result.port_or_default_port() == expect.effective_port);
