@@ -1,9 +1,9 @@
 {
     "name": "neo-url",
-    "version": "0.1.2",
+    "version": "0.2.0",
     "namespace": "neo",
     "test_driver": "Catch-Main",
     "depends": [
-        "neo-fun^0.4.3"
+        "neo-fun^0.5.5"
     ]
 }
