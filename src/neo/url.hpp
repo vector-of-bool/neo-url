@@ -1,15 +1,18 @@
 #pragma once
 
+#include "./url/fwd.hpp"
+#include "./url/parse.hpp"
 #include "./url/percent.hpp"
+#include "./url/view.hpp"
 
 #include <neo/assert.hpp>
+#include <neo/memory.hpp>
 #include <neo/opt_ref.hpp>
+#include <neo/utf8.hpp>
+#include <neo/utility.hpp>
 
-#include <cctype>
 #include <charconv>
-#include <memory>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -17,72 +20,20 @@
 
 namespace neo {
 
-struct url_validation_error : std::runtime_error {
-    using std::runtime_error::runtime_error;
-};
-
-namespace url_detail {
-
-constexpr bool is_dec_digit(char32_t c) noexcept { return (c >= '0' && c <= '9'); }
-
-constexpr bool is_hex_digit(char32_t c) noexcept {
-    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-}
-
-}  // namespace url_detail
-
-constexpr bool is_url_char(char32_t c) {
-    for (auto ok : U"!$&'()*+,-./:;=?@_~") {
-        if (c == ok) {
-            return true;
-        }
-    }
-    if (c >= 0xa0 && c <= 0x10fffd) {
-        if (c >= 0xd0'00 && c <= 0xdf'ff) {
-            // Exclude surrogates
-            return false;
-        }
-        if (c >= 0xfdd0 && c <= 0xfdef) {
-            // Non-char range
-            return false;
-        }
-        auto low  = c & 0xff'ff;
-        auto high = (c >> 16) & 0xff;
-        if (low == 0xff'ff || low == 0xff'fe) {
-            if (high <= 0x10) {
-                // A non-char
-                return false;
-            }
-        }
-        // Other unicode char:
-        return true;
-    }
-    if (c >= '0' && c <= '9') {
-        return true;
-    }
-    if (c >= 'a' && c <= 'z') {
-        return true;
-    }
-    if (c >= 'A' && c <= 'Z') {
-        return true;
-    }
-    return false;
-}
-
 template <typename String>
 class basic_url {
 public:
-    using string_type     = String;
-    using char_type       = typename string_type::value_type;
-    using view_type       = std::basic_string_view<char_type>;
-    using reference       = typename string_type::reference;
-    using const_reference = typename string_type::const_reference;
+    using string_type      = String;
+    using char_type        = typename string_type::value_type;
+    using string_view_type = std::basic_string_view<char_type>;
+    using reference        = typename string_type::reference;
+    using const_reference  = typename string_type::const_reference;
+
+    using url_view_type = basic_url_view<string_view_type>;
 
     using allocator_type = typename string_type::allocator_type;
 
-    using path_vec_type = std::vector<
-        string_type,
-        typename std::allocator_traits<allocator_type>::template rebind_alloc<string_type>>;
+    using path_vec_type = std::vector<string_type, rebind_alloc_t<allocator_type, string_type>>;
 
     using opt_string = std::optional<string_type>;
 
@@ -95,8 +46,8 @@ public:
         string_type string{};
         ipv6_type   ipv6_addr{};
 
-        constexpr static std::optional<host_t> parse(view_type str,
-                                                     bool      is_not_special = false) noexcept {
+        constexpr static std::optional<host_t> parse(string_view_type str,
+                                                     bool is_not_special = false) noexcept {
             auto c_it = str.cbegin();
 
             // Check for an IPv6 address
@@ -117,7 +68,7 @@ public:
             return parse_opaque(str);
         }
 
-        constexpr static std::optional<host_t> parse_ipv6(view_type str) noexcept {
+        constexpr static std::optional<host_t> parse_ipv6(string_view_type str) noexcept {
             if (str.empty()) {
                 return std::nullopt;
             }
@@ -162,7 +113,7 @@ public:
                 std::uint16_t value  = 0;
                 int           length = 0;
                 while (length < 4 && url_detail::is_hex_digit(c)) {
-                    value *= 0x10;
+                    value *= 0x10u;
                     value += static_cast<std::uint16_t>(url_detail::hex_decode(c));
                     ++ptr;
                     ++length;
@@ -245,7 +196,7 @@ public:
             return host_t{.kind = kind::ipv6, .ipv6_addr = addr};
         }
 
-        constexpr static std::optional<host_t> parse_opaque(view_type str) noexcept {
+        constexpr static std::optional<host_t> parse_opaque(string_view_type str) noexcept {
             if (str.empty()) {
                 return std::nullopt;
             }
@@ -278,8 +229,12 @@ public:
         }
     };
 
+    bool _cannot_be_a_base_url = false;
+
 public:
     string_type                  scheme;
+    string_type                  username;
+    string_type                  password;
     opt_string                   host;
     opt_string                   query;
     opt_string                   fragment;
@@ -290,14 +245,10 @@ public:
     explicit basic_url(allocator_type alloc)
         : scheme(alloc) {}
 
-    constexpr static bool is_special_scheme(view_type s) noexcept {
-        return s == "ftp" || s == "file" || s == "http" || s == "https" || s == "ws" || s == "wss";
-    }
-    constexpr bool is_special() const noexcept { return is_special_scheme(scheme); }
-
     constexpr allocator_type get_allocator() const noexcept { return scheme.get_allocator(); }
 
-    constexpr static std::optional<std::uint16_t> default_port_for_scheme(view_type s) noexcept {
+    constexpr static std::optional<std::uint16_t>
+    default_port_for_scheme(string_view_type s) noexcept {
         if (s == "ftp")
             return 21;
         if (s == "http")
@@ -316,18 +267,132 @@ public:
         return port_or_default_port().value_or(p);
     }
 
-    static basic_url parse(view_type input) {
+    constexpr static basic_url parse(string_view_type input) {
         auto res = try_parse(input);
-        auto err = std::get_if<url_validation_error>(&res);
+        auto err = std::get_if<url_parse_error>(&res);
         if (err) {
-            throw *err;
+            throw url_validation_error(std::string(err->error));
         }
         return std::get<basic_url>(std::move(res));
     }
 
-    static std::variant<basic_url, url_validation_error> try_parse(view_type input) noexcept {
+    template <typename Options = default_url_parse_options>
+    constexpr static basic_url
+    normalize(const url_view_type view, allocator_type alloc, Options opts = {}) {
+        auto v   = try_normalize(view, alloc, opts);
+        auto err = std::get_if<url_parse_error>(&v);
+        if (err) {
+            throw url_validation_error(std::string(err->error));
+        }
+        return std::get<basic_url>(std::move(v));
+    }
+
+    template <typename Options = default_url_parse_options>
+    constexpr static std::variant<basic_url, url_parse_error>
+    try_normalize(const url_view_type view, allocator_type alloc, Options opts = {}) noexcept {
+        basic_url ret{alloc};
+        // Lower-case the scheme string
+        ret.scheme.reserve(view.scheme.size());
+        for (auto c : view.scheme) {
+            ret.scheme.push_back(char_type(std::tolower(c)));
+        }
+
+        if (view.host) {
+            ret.username
+                = percent_encode<userinfo_pct_encode_set>(string_type(view.username, alloc));
+            ret.password
+                = percent_encode<userinfo_pct_encode_set>(string_type(view.password, alloc));
+
+            if (view.host->empty() && ret.scheme == "file") {
+                // Host is empty string. This is allowed for file:// URLs
+                ret.host.emplace(alloc);
+            } else {
+                auto host = host_t::parse(*view.host);
+                if (!host) {
+                    return url_parse_error{"Invalid host string"};
+                }
+                ret.host.emplace(host->string);
+            }
+            if (view.port) {
+                if (*view.port != default_port_for_scheme(ret.scheme)) {
+                    // Non-default port for this scheme
+                    ret.port = view.port;
+                } else if (!opts.implicit_default_port(ret.scheme)) {
+                    // The port is the same as the default, but we have been asked to keep those
+                    // ports in the result
+                    ret.port = view.port;
+                } else {
+                    // The port is the same as the scheme default, and caller wants us to drop it
+                    // and allow it to be implicit. Okay.
+                }
+            }
+        }
+
+        if (!view.path.empty()) {
+            // Nonempty path, but we may need to "normalize" it
+            auto path = string_type(view.path, alloc);
+            if (opts.normalize_paths(ret.scheme)) {
+                auto ds  = string_view_type("/./");
+                auto dds = string_view_type("/../");
+                for (auto ds_pos = path.find(ds); ds_pos != path.npos; ds_pos = path.find(ds)) {
+                    path.erase(ds_pos, 2);
+                }
+                for (auto pos = path.find(dds); pos != path.npos; pos = path.find(dds)) {
+                    path.erase(pos, 3);
+                    auto it = path.begin() + pos;
+                    --it;
+                    while (it != path.begin() && *it != '/') {
+                        --it;
+                    }
+                    path.erase(it, path.begin() + pos);
+                }
+                if (path.ends_with("/.")) {
+                    path.erase(path.size() - 2, 2);
+                }
+                if (path.ends_with("/..")) {
+                    path.erase(path.size() - 3, 3);
+                    auto it = path.end();
+                    --it;
+                    while (it != path.begin() && *it != '/') {
+                        --it;
+                    }
+                    path.erase(it, path.end());
+                }
+            }
+            if (path.empty()) {
+                // Path _became_ empty via our normalization
+                if (opts.force_full_path(ret.scheme)) {
+                    path.push_back('/');
+                }
+            }
+            ret.path_elems.emplace_back(percent_encode<path_pct_encode_set>(path));
+        } else if (opts.force_full_path(ret.scheme)) {
+            // The path is empty, but the scheme mandates that there be at least a slash
+            ret.path_elems.emplace_back("/", alloc);
+        } else {
+            // Empty path, but no forcing of the path. This is okay.
+        }
+
+        if (view.query) {
+            auto q = string_type(*view.query, alloc);
+            ret.query.emplace(opts.is_special_scheme(ret.scheme)
+                                  ? percent_encode<special_query_pct_encode_set>(q)
+                                  : percent_encode<query_pct_encode_set>(q));
+        }
+
+        if (view.fragment) {
+            ret.fragment.emplace(
+                percent_encode<fragment_pct_encode_set>(string_type(*view.fragment, alloc)));
+        }
+
+        return ret;
+    }
+
+    template <typename Options = default_url_parse_options>
+    static constexpr std::variant<basic_url, url_parse_error>
+    try_parse(string_view_type input, Options opts = {}) noexcept {
         if (input.empty()) {
-            return url_validation_error("Empty string given for URL");
+            return url_parse_error{"Empty string given for URL"};
         }
 
         bool at_flag           = false;
@@ -349,33 +414,52 @@ public:
             path,
             host,
             port,
+            cannot_be_a_base_url_path,
             query,
             fragment,
         };
         state_t state = scheme_start;
 
+        // The URL that we will eventually return
         basic_url url;
 
-        int marker = 0;
-
-        auto              ptr        = input.cbegin();
         bool              is_special = false;
         const string_type empty_string{url.get_allocator()};
         string_type       buffer = empty_string;
 
-        while (true) {
-            const bool      at_end     = ptr == input.cend();
-            const char_type c          = at_end ? char_type() : *ptr;
-            const bool      is_solidus = c == char_type('/');
-            const view_type remaining
-                = at_end ? view_type() : input.substr((ptr - input.begin()) + 1);
+        utf8_range chars{input};
+        auto       ptr = chars.begin();
 
-            auto c_is_oneof = [&](view_type arr) { return arr.find_first_of(c) != arr.npos; };
+        auto peek = [&](int n) { return *std::next(ptr, n); };
+
+        using std::move;
+
+        while (true) {
+            auto cp_res = *ptr;
+            if (!!cp_res.error()) {
+                switch (cp_res.error()) {
+                case utf8_errc::invalid_start_byte:
+                    return url_parse_error{"Invalid UTF-8: Invalid start byte"};
+                case utf8_errc::invalid_continuation_byte:
+                    return url_parse_error{"Invalid UTF-8: Invalid continuation byte"};
+                case utf8_errc::need_more:
+                    if (cp_res.size != 0) {
+                        return url_parse_error{"Invalid UTF-8: Truncated stream"};
+                    }
+                    break;
+                default:
+                    return url_parse_error{"Unknown error in UTF-8 decode"};
+                }
+            }
+            const bool     at_end     = ptr.at_end();
+            const char32_t c          = cp_res.codepoint;
+            const bool     is_solidus = c == U'/';
+            auto           char_str   = ptr.tail_string().substr(0, cp_res.size);
 
             auto pct_check = [&] {
                 if (c == '%') {
-                    if (remaining.size() < 2 || url_detail::hex_decode(remaining[0]) < 0
-                        || url_detail::hex_decode(remaining[1]) < 0) {
+                    if (url_detail::hex_decode(peek(1).codepoint) < 0
+                        || url_detail::hex_decode(peek(2).codepoint) < 0) {
                         return false;
                     }
                 }
@@ -386,84 +470,81 @@ public:
 
             // https://url.spec.whatwg.org/#scheme-start-state
             case scheme_start: {
-                if (std::isalpha(c)) {
-                    buffer.push_back(char_type(std::tolower(c)));
+                if (url_detail::is_ascii_alpha(c)) {
+                    buffer.append(char_str);
                     state = scheme;
-                    goto next;
+                    break;
                 }
-                state = no_scheme;
-                --ptr;
-                goto next;
+                return url_parse_error{"Invalid URL string"};
             }
 
             // https://url.spec.whatwg.org/#scheme-state
             case scheme: {
                 // Characters that should be appended to the scheme:
-                if (std::isalnum(c) || c_is_oneof("+-.")) {
-                    buffer.push_back(char_type(std::tolower(c)));
-                    goto next;
+                if (url_detail::is_ascii_alphanumeric(c) || c == oper::any_of('+', '-', '.')) {
+                    buffer.append(char_str);
+                    break;
                 }
                 // The scheme is terminated by the colon
                 else if (c == ':') {
-                    url.scheme = buffer;
-                    is_special = is_special_scheme(url.scheme);
+                    url.scheme = move(buffer);
+                    is_special = opts.is_special_scheme(url.scheme);
                     buffer     = empty_string;
                     if (url.scheme == "file") {
-                        if (remaining.find("//") != 0) {
-                            return url_validation_error(
-                                "file:// URL must have two slash '/' characters following the "
-                                "scheme");
+                        if (peek(1).codepoint != '/' || peek(2).codepoint != '/') {
+                            return url_parse_error{
+                                "'file:' URL must have two slash '/' characters following the"
+                                "scheme"};
                         }
                         state = file;
-                    } else if (is_special) {
+                    } else if (opts.authority_required(url.scheme)) {
                         state = special_authority_slashes;
-                    } else if (remaining.find("/") == 0) {
+                    } else if (peek(1).codepoint == '/') {
                         state = path_or_authority;
                         ++ptr;
                     } else {
-                        return url_validation_error(
-                            "URL string is invalid: Expected path-or-authority after 'scheme:' "
-                            "prefix");
+                        url.path_elems.push_back(empty_string);
+                        state                     = cannot_be_a_base_url_path;
+                        url._cannot_be_a_base_url = true;
                     }
                 } else {
                     // The character is invalid!
-                    return url_validation_error(
-                        "URL string is invalid (failed to parse a URL scheme)");
+                    return url_parse_error{"URL string is invalid (failed to parse a URL scheme)"};
                 }
-                goto next;
+                break;
             }
 
             // https://url.spec.whatwg.org/#no-scheme-state
             case no_scheme: {
-                return url_validation_error("URL string does not contain a scheme component");
+                return url_parse_error{"URL string does not contain a scheme component"};
             }
 
             case file: {
+                url.host = empty_string;
                 if (c == '/' || c == '\\') {
                     state = file_slash;
-                    goto next;
+                    break;
                 } else {
                     state = path;
                     --ptr;
                 }
-                goto next;
+                break;
             }
 
             case file_slash: {
                 if (c == '\\') {
-                    return url_validation_error(
-                        "URL file path contains a forbidden '\\' character");
+                    return url_parse_error{"URL file path contains a forbidden '\\' character"};
                 } else if (is_solidus) {
                     state = file_host;
                 } else {
                     state = path;
                     --ptr;
                 }
-                goto next;
+                break;
             }
 
             case file_host: {
-                if (at_end || c_is_oneof("/\\?#")) {
+                if (at_end || (c == oper::any_of('/', '\\', '?', '#'))) {
                     --ptr;
                     if (buffer.empty()) {
                         url.host = empty_string;
@@ -471,8 +552,8 @@ public:
                     } else {
                         auto host = host_t::parse(buffer, !is_special);
                         if (!host) {
-                            return url_validation_error(
-                                "File URL is invalid: The host segment is not a valid host");
+                            return url_parse_error{
+                                "File URL is invalid: The host segment is not a valid host"};
                         }
                         url.host = host->string;
                         if (url.host == "localhost") {
@@ -482,21 +563,21 @@ public:
                         state  = path_start;
                     }
                 } else {
-                    buffer.push_back(c);
+                    buffer.append(char_str);
                 }
-                goto next;
+                break;
             }
 
             // https://url.spec.whatwg.org/#special-authority-slashes-state
             case special_authority_slashes: {
-                if (is_solidus && remaining.find("/") == 0) {
+                if (is_solidus && peek(1).codepoint == '/') {
                     state = special_authority_ignore_slashes;
                     ++ptr;
                 } else {
-                    return url_validation_error(
-                        "URL string is invalid (Expected '//' following 'scheme:')");
+                    return url_parse_error{
+                        "URL string is invalid (Expected '//' following 'scheme:')"};
                 }
-                goto next;
+                break;
             }
 
             // https://url.spec.whatwg.org/#special-authority-ignore-slashes-state
@@ -505,10 +586,10 @@ public:
                     state = authority;
                     --ptr;
                 } else {
-                    return url_validation_error(
-                        "Unexpected additional slash following 'scheme://' in URL");
+                    return url_parse_error{
+                        "Unexpected additional slash following 'scheme://' in URL"};
                 }
-                goto next;
+                break;
             }
 
             // https://url.spec.whatwg.org/#path-or-authority-state
@@ -519,84 +600,106 @@ public:
                     state = path;
                     --ptr;
                 }
-                goto next;
+                break;
             }
 
             // https://url.spec.whatwg.org/#authority-state
             case authority: {
-                // We don't like '@'
-                if (c == char_type('@')) {
-                    return url_validation_error(
-                        "URL string is invalid: Unexpected '@' character in authority segment.");
+                // Userinfo:
+                if (c == '@') {
+                    if (at_flag) {
+                        buffer.insert(0, string_type("%40"));
+                    }
+                    at_flag = true;
+                    utf8_range buf_u8{buffer};
+                    for (auto cp_it = buf_u8.begin(); cp_it != buf_u8.end(); ++cp_it) {
+                        auto cp = *cp_it;
+                        if (cp.codepoint == ':' && !password_tok_seen) {
+                            password_tok_seen = true;
+                            continue;
+                        }
+                        auto tail = cp_it.tail_string().substr(0, cp.size);
+                        auto enc  = percent_encode<userinfo_pct_encode_set>(tail);
+                        if (password_tok_seen) {
+                            url.password.append(enc);
+                        } else {
+                            url.username.append(enc);
+                        }
+                    }
+                    buffer = empty_string;
                 }
                 // Check if we're at the end of the authority segment:
-                else if (at_end || c_is_oneof("/?#")) {
+                else if (at_end || c == oper::any_of('/', '?', '#')) {
                     if (at_flag && buffer == "") {
-                        return url_validation_error(
-                            "URL string is invalid: Unexpected character in authority segment");
+                        return url_parse_error{
+                            "URL string is invalid: Expected a host following '@' in authority"
+                            "segment"};
                     }
-                    std::advance(ptr, -(buffer.size() + 1));
+                    for (auto _ignore [[maybe_unused]] : utf8_range{buffer}) {
+                        --ptr;
+                    }
+                    --ptr;
                     buffer = empty_string;
                     state  = host;
                 }
                 // Just another character:
                 else {
-                    buffer.push_back(c);
+                    buffer.append(char_str);
                 }
-                goto next;
+                break;
             }
 
             // https://url.spec.whatwg.org/#host-state
             case host: {
                 // Check if we have a port:
-                if (c == char_type(':') && !square_flag) {
+                if (c == ':' && !square_flag) {
                     if (buffer.empty()) {
-                        return url_validation_error(
-                            "URL string is invalid: Expected host before colon in URL string.");
+                        return url_parse_error{
+                            "URL string is invalid: Expected host before colon in URL string."};
                     }
                     auto host = host_t::parse(buffer, !is_special);
                     if (!host) {
-                        return url_validation_error(
-                            "URL string is invalid: Host segment is not a valid host");
+                        return url_parse_error{
+                            "URL string is invalid: Host segment is not a valid host"};
                     }
                     url.host = host->string;
                     buffer   = empty_string;
                     state    = port;
-                } else if (at_end || c_is_oneof("/?#")) {
+                } else if (at_end || c == oper::any_of('/', '?', '#')) {
                     --ptr;
                     auto host = host_t::parse(buffer, !is_special);
                     if (!host) {
-                        return url_validation_error(
-                            "URL string is invalid: Host segment is not a valid host");
+                        return url_parse_error{
+                            "URL string is invalid: Host segment is not a valid host"};
                     }
                     url.host = host->string;
                     buffer   = empty_string;
                     state    = path_start;
                 } else {
-                    if (c == char_type('[')) {
+                    if (c == U'[') {
                         square_flag = true;
-                    } else if (c == char_type(']')) {
+                    } else if (c == U']') {
                         square_flag = false;
                     }
-                    buffer.push_back(c);
+                    buffer.append(char_str);
                 }
-                goto next;
+                break;
             }
 
             // https://url.spec.whatwg.org/#port-state
             case port: {
                 if (std::isdigit(c)) {
-                    buffer.push_back(c);
-                } else if (at_end || c_is_oneof("/?#")) {
+                    buffer.append(char_str);
+                } else if (at_end || c == oper::any_of('/', '?', '#')) {
                     if (!buffer.empty()) {
                         std::int32_t port_i = 0;
                         auto         conv_res
                             = std::from_chars(buffer.data(), buffer.data() + buffer.size(), port_i);
                         if (conv_res.ec != std::errc{}) {
-                            return url_validation_error("URL's host port is invalid. (Too long?)");
+                            return url_parse_error{"URL's host port is invalid. (Too long?)"};
                         }
                         if (port >= std::numeric_limits<std::uint16_t>::max()) {
-                            return url_validation_error("URL's host port is too large");
+                            return url_parse_error{"URL's host port is too large"};
                         }
                         if (port_i != default_port_for_scheme(url.scheme)) {
                             url.port = port_i;
@@ -606,17 +709,17 @@ public:
                     state = path_start;
                     --ptr;
                 } else {
-                    return url_validation_error("Invalid URL port segment.");
+                    return url_parse_error{"Invalid URL port segment."};
                 }
-                goto next;
+                break;
             }
 
             // https://url.spec.whatwg.org/#path-start-state
             case path_start: {
                 if (is_special) {
                     if (c == '\\') {
-                        return url_validation_error(
-                            "The URL path should not begin with a '\\' character.");
+                        return url_parse_error{
+                            "The URL path should not begin with a '\\' character."};
                     }
                     state = path;
                     if (c != '/') {
@@ -636,18 +739,19 @@ public:
                 } else {
                     // End of input. We're done!
                 }
-                goto next;
+                break;
             }
 
             // https://url.spec.whatwg.org/#path-state
             case path: {
-                if (at_end || c == '/' || c_is_oneof("?#") || (is_special && c == '\\')) {
+                if (at_end || c == '/' || c == oper::any_of('/', '?', '#')
+                    || (is_special && c == '\\')) {
                     if (buffer.size() >= 2 && buffer.size() <= 6
                         && percent_decode(buffer) == "..") {
                         if (!url.path_elems.empty()) {
                             url.path_elems.pop_back();
                         }
-                        if (c != '/' && !is_special) {
+                        if (c != '/') {
                             url.path_elems.push_back(empty_string);
                         }
                     } else if (buffer == "." && !is_solidus) {
@@ -655,13 +759,13 @@ public:
                     } else if (buffer != ".") {
                         if (url.scheme == "file") {
                             // Check for a Windows drive letter. Ew...
-                            if (buffer.size() == 2 && std::isalpha(buffer[0])
+                            if (buffer.size() == 2 && url_detail::is_ascii_alpha(buffer[0])
                                 && (buffer[1] == char_type(':') || buffer[1] == char_type('|'))
                                 && url.path_elems.empty()) {
                                 if (url.host.has_value()) {
-                                    return url_validation_error(
+                                    return url_parse_error{
                                         "Windows drive letters may not be used with a host in a "
-                                        "file:// URL");
+                                        "file:// URL"};
                                 }
                                 buffer[1] = char_type(':');
                             }
@@ -669,13 +773,6 @@ public:
                         url.path_elems.push_back(buffer);
                     }
                     buffer = empty_string;
-                    if (url.scheme == "file" && (at_end || c_is_oneof("?#"))) {
-                        if (!url.path_elems.empty() && url.path_elems.front().empty()) {
-                            return url_validation_error(
-                                "file:// URL contains excess empty path elements at the "
-                                "beginning");
-                        }
-                    }
                     if (c == char_type('?')) {
                         url.query = empty_string;
                         state     = query;
@@ -686,16 +783,38 @@ public:
                     }
                 } else {
                     if (c != char_type('%') && !is_url_char(c)) {
-                        return url_validation_error(
-                            "URL string contains an invalid character in its path segment");
+                        return url_parse_error{
+                            "URL string contains an invalid character in its path segment"};
                     } else if (!pct_check()) {
-                        return url_validation_error("Invalid %-sequence in URL path.");
+                        return url_parse_error{"Invalid %-sequence in URL path."};
                     } else {
-                        auto enc = percent_encode<path_pct_encode_set>(view_type(&c, 1));
+                        auto enc = percent_encode<path_pct_encode_set>(char_str);
                         buffer.append(enc);
                     }
                 }
-                goto next;
+                break;
+            }
+
+            // https://url.spec.whatwg.org/#cannot-be-a-base-url-path-state
+            case cannot_be_a_base_url_path: {
+                if (c == '?') {
+                    url.query = empty_string;
+                    state     = query;
+                    break;
+                } else if (c == '#') {
+                    url.fragment = empty_string;
+                    state        = fragment;
+                } else {
+                    if (!at_end && !is_url_char(c)) {
+                        return url_parse_error{"Invalid character in URL path"};
+                    } else if (c == '%' && !pct_check()) {
+                        return url_parse_error{"Invalid %-sequence in URL path."};
+                    } else {
+                        auto enc = percent_encode<c0_control_pct_encode_set>(char_str);
+                        url.path_elems.back().append(enc);
+                    }
+                }
+                break;
             }
 
             // https://url.spec.whatwg.org/#query-state
@@ -705,49 +824,45 @@ public:
                     state        = fragment;
                 } else if (!at_end) {
                     if (c != '%' && !is_url_char(c)) {
-                        return url_validation_error("Invalid character in URL query segment");
+                        return url_parse_error{"Invalid character in URL query segment"};
                     }
                     if (!pct_check()) {
-                        return url_validation_error("Invalid %-sequence in URL query.");
+                        return url_parse_error{"Invalid %-sequence in URL query."};
                     }
-                    auto enc = is_special
-                        ? percent_encode<special_query_pct_encode_set>(view_type(&c, 1))
-                        : percent_encode<query_pct_encode_set>(view_type(&c, 1));
+                    auto enc = is_special ? percent_encode<special_query_pct_encode_set>(char_str)
+                                          : percent_encode<query_pct_encode_set>(char_str);
                     url.query->append(enc);
                 }
-                goto next;
+                break;
             }
 
             // https://url.spec.whatwg.org/#fragment-state
             case fragment: {
                 if (!at_end) {
                     if (!pct_check()) {
-                        return url_validation_error("Invalid %-sequence in URL fragment segment.");
+                        return url_parse_error{"Invalid %-sequence in URL fragment segment."};
                     }
-                    auto enc = percent_encode<fragment_pct_encode_set>(view_type(&c, 1));
+                    auto enc = percent_encode<fragment_pct_encode_set>(char_str);
                     url.fragment->append(enc);
                 }
-                goto next;
+                break;
             }
+            default:
+                neo_assert_always(invariant,
+                                  false,
+                                  "Failed/unimplemented case in URL parsing code",
+                                  state,
+                                  input,
+                                  char_str,
+                                  buffer,
+                                  url.scheme,
+                                  url.host.value_or("[nullopt]"),
+                                  at_end,
+                                  at_flag,
+                                  password_tok_seen,
+                                  square_flag);
             }
-            neo_assert_always(invariant,
-                              false,
-                              "Failed/unimplemented case in URL parsing code",
-                              marker,
-                              state,
-                              input,
-                              c,
-                              buffer,
-                              url.scheme,
-                              url.host.value_or("[nullopt]"),
-                              remaining,
-                              at_end,
-                              ptr - input.begin(),
-                              at_flag,
-                              password_tok_seen,
-                              square_flag);
-        next:
-            if (ptr == input.cend()) {
+            if (ptr.at_end()) {
                 break;
             }
             ++ptr;
@@ -758,20 +873,31 @@ public:
 
     constexpr string_type path_string() const noexcept {
         string_type ret{get_allocator()};
-        for (auto&& el : path_elems) {
-            ret.push_back('/');
-            ret.append(el);
+        if (_cannot_be_a_base_url) {
+            ret.append(path_elems.front());
+        } else {
+            for (auto&& el : path_elems) {
+                // ret.push_back('/');
+                ret.append(el);
+            }
         }
         return ret;
     }
 
     constexpr string_type to_string() const noexcept {
-        string_type acc;
-        acc = scheme;
+        string_type acc = scheme;
         acc.push_back(':');
         if (host) {
             acc.push_back('/');
             acc.push_back('/');
+            if (!username.empty() || !password.empty()) {
+                acc.append(username);
+                if (!password.empty()) {
+                    acc.push_back(':');
+                    acc.append(password);
+                }
+                acc.push_back('@');
+            }
             acc.append(*host);
             if (port) {
                 acc.push_back(':');
@@ -781,7 +907,7 @@ public:
             acc.push_back('/');
             acc.push_back('/');
         }
-        if (!host && path_elems.size() > 1 && path_elems[0].empty()) {
+        if (!host && path_elems[0].starts_with("//")) {
             acc.push_back('/');
             acc.push_back('.');
         }

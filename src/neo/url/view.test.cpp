@@ -1,32 +1,6 @@
-#include "./url.hpp"
-#include "./url/view.hpp"
+#include <neo/url/view.hpp>
 
 #include <catch2/catch.hpp>
-
-TEST_CASE("Parse a basic host") {
-    auto host = neo::url::host_t::parse_opaque("google.com");
-    CHECKED_IF(host.has_value()) { CHECK(host->string == "google.com"); }
-}
-
-TEST_CASE("Parse an ipv6 host") {
-    auto host = neo::url::host_t::parse("[::]");
-    CHECKED_IF(host.has_value()) {  //
-        CHECK(host->ipv6_addr == neo::url::host_t::ipv6_type{});
-    };
-
-    host = host->parse("[::5]");
-    CHECKED_IF(host) {  //
-        CHECK(host->ipv6_addr[7] == 5);
-    }
-
-    host = host->parse("[4f1b:929::989a:3]");
-    CHECKED_IF(host) {  //
-        CHECK(host->ipv6_addr[0] == 0x4f1b);
-        CHECK(host->ipv6_addr[1] == 0x929);
-        CHECK(host->ipv6_addr[6] == 0x989a);
-        CHECK(host->ipv6_addr[7] == 0x3);
-    }
-}
 
 TEST_CASE("Bad URLs") {
     const std::string_view given = GENERATE(Catch::Generators::values<std::string_view>({
@@ -35,6 +9,9 @@ TEST_CASE("Bad URLs") {
         "\xe8ttp://google.com/mail",
         // Only ASCII alnum in scheme:
         "èttp://google.com/mail",
+        "hèttp://google.com/mail",
+        // First char MUST be an alpha
+        "5ttp://google.com/mail",
         // Not even resembling a URL:
         "ykoc",
         "p://\x85\x85\x85\x85",
@@ -51,11 +28,11 @@ TEST_CASE("Bad URLs") {
         "https://example.org/foo bar",
         // Spaces in hostname are never allowed, even per spec
         "https://ex ample.org",
-        // Bracketed hosts should be IPv6 addresses
-        "http://[www.example.com]/",
+        // // Bracketed hosts should be IPv6 addresses
+        // "http://[www.example.com]/",
     }));
     CAPTURE(given);
-    auto result = neo::url::try_parse(given);
+    auto result = neo::url_view::try_split(given);
     CHECK(std::holds_alternative<neo::url_parse_error>(result));
 }
 
@@ -72,8 +49,8 @@ TEST_CASE("Parse a URL") {
         opt_str          host           = nullopt;
         optional<int>    port           = nullopt;
         std::string      path           = "";
-        std::string      query          = "";
         std::string      fragment       = "";
+        std::string      query          = "";
         int              effective_port = 0;
         std::string      to_string_res  = std::string(given);
     };
@@ -127,11 +104,10 @@ TEST_CASE("Parse a URL") {
         },
         // No path on special URL ends up with a single implicit `/`
         {
-            .given         = "https://google.com",
-            .scheme        = "https",
-            .host          = "google.com",
-            .path          = "/",
-            .to_string_res = "https://google.com/",
+            .given  = "https://google.com",
+            .scheme = "https",
+            .host   = "google.com",
+            .path   = "",
         },
         // Simple URL again
         {
@@ -145,9 +121,8 @@ TEST_CASE("Parse a URL") {
             .given  = "http://localhost:80/foo",
             .scheme = "http",
             .host   = "localhost",
+            .port   = 80,
             .path   = "/foo",
-            // Drops the port because it is the HTTP default:
-            .to_string_res = "http://localhost/foo",
         },
         // With a non-default port, the port is maintained:
         {
@@ -196,19 +171,17 @@ TEST_CASE("Parse a URL") {
         },
         // Relative paths are collapsed
         {
-            .given         = "file:///usr/../",
-            .scheme        = "file",
-            .host          = "",
-            .path          = "/",
-            .to_string_res = "file:///",
+            .given  = "file:///usr/../",
+            .scheme = "file",
+            .host   = "",
+            .path   = "/usr/../",
         },
         // Relative paths are collapsed, even without trailing '/'
         {
-            .given         = "file:///usr/..",
-            .scheme        = "file",
-            .host          = "",
-            .path          = "/",
-            .to_string_res = "file:///",
+            .given  = "file:///usr/..",
+            .scheme = "file",
+            .host   = "",
+            .path   = "/usr/..",
         },
         // Simple relative path on non-special scheme:
         {
@@ -216,15 +189,13 @@ TEST_CASE("Parse a URL") {
             .scheme = "hello",
             .path   = "world",
         },
-        // Again, implicit path '/' for special schemes
         {
-            .given         = "https://user:password@example.org",
-            .scheme        = "https",
-            .username      = "user",
-            .password      = "password",
-            .host          = "example.org",
-            .path          = "/",
-            .to_string_res = "https://user:password@example.org/",
+            .given    = "https://user:password@example.org",
+            .scheme   = "https",
+            .username = "user",
+            .password = "password",
+            .host     = "example.org",
+            .path     = "",
         },
         // Double-slashes in paths are maintained
         {
@@ -240,7 +211,7 @@ TEST_CASE("Parse a URL") {
             .given  = "web+demo:/.//not-a-host/",
             .scheme = "web+demo",
             // Path has been collapsed, but comes back correctly in to_string()
-            .path = "//not-a-host/",
+            .path = "/.//not-a-host/",
         },
         // Similar deal: The '/..' collapses along with the prior element, but
         // does not accidentally form an authority in to_string()
@@ -249,58 +220,31 @@ TEST_CASE("Parse a URL") {
             .given  = "web+demo:/path/..//not-a-host/",
             .scheme = "web+demo",
             // Path has been collapsed, but comes back correctly in to_string()
-            .path          = "//not-a-host/",
-            .to_string_res = "web+demo:/.//not-a-host/",
+            .path = "/path/..//not-a-host/",
         },
         // Funky userinfo provided with special characters that must be percent-encoded:
         {
             .given         = "http://user:password:pass@exa:mple@ex.com/",
             .scheme        = "http",
             .username      = "user",
-            .password      = "password%3Apass%40exa%3Ample",
+            .password      = "password:pass@exa:mple",
             .host          = "ex.com",
             .path          = "/",
-            .to_string_res = "http://user:password%3Apass%40exa%3Ample@ex.com/",
-        },
-        {
-            .given  = "http://google.com/mail?inbox=12",
-            .scheme = "http",
-            .host   = "google.com",
-            .path   = "/mail",
-            .query  = "inbox=12",
-        },
-        {
-            .given    = "http://google.com/mail?inbox=12#subid",
-            .scheme   = "http",
-            .host     = "google.com",
-            .path     = "/mail",
-            .query    = "inbox=12",
-            .fragment = "subid",
+            .to_string_res = "http://user:password:pass@exa:mple@ex.com/",
         },
     }));
 
+    INFO("Parsing URL: " << expect.given);
+    auto result = neo::url_view::split(expect.given);
     CAPTURE(expect.given);
-    auto result = neo::url::parse(expect.given);
     CHECK(result.host.value_or("[null]") == expect.host.value_or("[null]"));
     CHECK(result.port.value_or(0) == expect.port.value_or(0));
     CHECK(result.scheme == expect.scheme);
     CHECK(result.username == expect.username);
     CHECK(result.password == expect.password);
-    // CHECK(result.path_string() == expect.path);
-    if (expect.effective_port) {
-        CHECK(result.port_or_default_port() == expect.effective_port);
-    }
-    // CHECK(result.to_string() == expect.to_string_res);
-
-    result = neo::url_view::split(expect.given).normalize();
-    CHECK(result.host.value_or("[null]") == expect.host.value_or("[null]"));
-    CHECK(result.port.value_or(0) == expect.port.value_or(0));
-    CHECK(result.scheme == expect.scheme);
-    CHECK(result.username == expect.username);
-    CHECK(result.password == expect.password);
-    CHECK(result.path_string() == expect.path);
-    if (expect.effective_port) {
-        CHECK(result.port_or_default_port() == expect.effective_port);
-    }
+    CHECK(result.path == expect.path);
+    // if (expect.effective_port) {
+    //     CHECK(result.port_or_default_port() == expect.effective_port);
+    // }
     CHECK(result.to_string() == expect.to_string_res);
 }
