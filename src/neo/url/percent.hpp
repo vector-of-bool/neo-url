@@ -177,7 +177,7 @@ constexpr string_type_t<String> percent_encode(const String& str) {
             }
             ret.push_back(char_type('%'));
             ret.push_back(char_type('3'));
-            ret.push_back(char_type('b'));
+            ret.push_back(char_type('B'));
             return ret;
         }
     }
@@ -187,7 +187,7 @@ constexpr string_type_t<String> percent_encode(const String& str) {
             ret.push_back(char_type('%'));
             auto                  high  = int(b) >> 4;
             auto                  low   = int(b) & 0b1111;
-            constexpr const char* chars = "0123456789abcdef";
+            constexpr const char* chars = "0123456789ABCDEF";
             ret.push_back(char_type(chars[high]));
             ret.push_back(char_type(chars[low]));
         } else {
