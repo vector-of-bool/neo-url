@@ -53,8 +53,8 @@ public:
             + (username.empty() ? 0 : (username.size() + 1))  //
             + (password.empty() ? 0 : (password.size() + 1))  //
             + path.size()                                     //
-            + (query ? query->size() : 0)                     //
-            + (fragment ? fragment->size() : 0);
+            + (query ? query->size() + 1 : 0)                 //
+            + (fragment ? fragment->size() + 1 : 0);
 
         ret.reserve(reserve);
 
@@ -199,7 +199,7 @@ public:
             if (*iter == '/' && url.scheme != "file") {
                 return url_parse_error{"Invalid URL string: Excessive slashes following shceme"};
             }
-            while (iter != end && *iter != '/') {
+            while (iter != end && *iter == oper::none_of('/', '?', '#')) {
                 if (!is_url_char(*iter) && *iter != '%') {
                     return url_parse_error{"Invalid character in URL string host segment"};
                 }
@@ -244,7 +244,7 @@ public:
             // No scheme, but that's okay for this URL scheme
         }
 
-        while (iter != end && *iter != '?') {
+        while (iter != end && *iter == oper::none_of('?', '#')) {
             if (!is_url_char(*iter) && *iter != '%') {
                 return url_parse_error{"Invalid character in URL string path segment"};
             }

@@ -277,6 +277,42 @@ TEST_CASE("Parse a URL") {
             .query    = "inbox=12",
             .fragment = "subid",
         },
+        // Hostnames are lower-cased, and dot-dot at top of URL just disappears
+        {
+            .given         = "https://EXAMPLE.com/../x",
+            .scheme        = "https",
+            .host          = "example.com",
+            .path          = "/x",
+            .to_string_res = "https://example.com/x",
+        },
+        // No path, just straight to query:
+        {
+            .given         = "http://example.com?query",
+            .scheme        = "http",
+            .host          = "example.com",
+            .path          = "/",
+            .query         = "query",
+            .to_string_res = "http://example.com/?query",
+        },
+        // No path, just straight to fragment:
+        {
+            .given         = "http://example.com#fragment",
+            .scheme        = "http",
+            .host          = "example.com",
+            .path          = "/",
+            .fragment      = "fragment",
+            .to_string_res = "http://example.com/#fragment",
+        },
+        // Query and fragment:
+        {
+            .given         = "http://example.com?query#fragment",
+            .scheme        = "http",
+            .host          = "example.com",
+            .path          = "/",
+            .query         = "query",
+            .fragment      = "fragment",
+            .to_string_res = "http://example.com/?query#fragment",
+        },
     }));
 
     CAPTURE(expect.given);

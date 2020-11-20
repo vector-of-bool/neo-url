@@ -49,8 +49,8 @@ TEST_CASE("Parse a URL") {
         opt_str          host           = nullopt;
         optional<int>    port           = nullopt;
         std::string      path           = "";
-        std::string      fragment       = "";
         std::string      query          = "";
+        std::string      fragment       = "";
         int              effective_port = 0;
         std::string      to_string_res  = std::string(given);
     };
@@ -224,13 +224,40 @@ TEST_CASE("Parse a URL") {
         },
         // Funky userinfo provided with special characters that must be percent-encoded:
         {
-            .given         = "http://user:password:pass@exa:mple@ex.com/",
-            .scheme        = "http",
-            .username      = "user",
-            .password      = "password:pass@exa:mple",
-            .host          = "ex.com",
-            .path          = "/",
-            .to_string_res = "http://user:password:pass@exa:mple@ex.com/",
+            .given    = "http://user:password:pass@exa:mple@ex.com/",
+            .scheme   = "http",
+            .username = "user",
+            .password = "password:pass@exa:mple",
+            .host     = "ex.com",
+            .path     = "/",
+        },
+        {
+            .given  = "https://EXAMPLE.com/../x",
+            .scheme = "https",
+            .host   = "EXAMPLE.com",
+            .path   = "/../x",
+        },
+        // No path, just straight to query:
+        {
+            .given  = "http://example.com?query",
+            .scheme = "http",
+            .host   = "example.com",
+            .query  = "query",
+        },
+        // No path, just straight to fragment:
+        {
+            .given    = "http://example.com#fragment",
+            .scheme   = "http",
+            .host     = "example.com",
+            .fragment = "fragment",
+        },
+        // Query and fragment:
+        {
+            .given    = "http://example.com?query#fragment",
+            .scheme   = "http",
+            .host     = "example.com",
+            .query    = "query",
+            .fragment = "fragment",
         },
     }));
 
