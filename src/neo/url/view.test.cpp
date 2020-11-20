@@ -49,8 +49,8 @@ TEST_CASE("Parse a URL") {
         opt_str          host           = nullopt;
         optional<int>    port           = nullopt;
         std::string      path           = "";
-        std::string      fragment       = "";
         std::string      query          = "";
+        std::string      fragment       = "";
         int              effective_port = 0;
         std::string      to_string_res  = std::string(given);
     };
@@ -237,6 +237,27 @@ TEST_CASE("Parse a URL") {
             .host   = "EXAMPLE.com",
             .path   = "/../x",
         },
+        // No path, just straight to query:
+        {
+            .given  = "http://example.com?query",
+            .scheme = "http",
+            .host   = "example.com",
+            .query  = "query",
+        },
+        // No path, just straight to fragment:
+        {
+            .given    = "http://example.com#fragment",
+            .scheme   = "http",
+            .host     = "example.com",
+            .fragment = "fragment",
+        },
+        // Query and fragment:
+        {
+            .given    = "http://example.com?query#fragment",
+            .scheme   = "http",
+            .host     = "example.com",
+            .query    = "query",
+            .fragment = "fragment",
         },
     }));
 
