@@ -311,7 +311,10 @@ public:
                 if (!host) {
                     return url_parse_error{"Invalid host string"};
                 }
-                ret.host.emplace(host->string);
+                ret.host.emplace(alloc);
+                for (auto c : host->string) {
+                    ret.host->push_back(char_type(std::tolower(c)));
+                }
             }
             if (view.port) {
                 if (*view.port != default_port_for_scheme(ret.scheme)) {
@@ -339,12 +342,14 @@ public:
                 }
                 for (auto pos = path.find(dds); pos != path.npos; pos = path.find(dds)) {
                     path.erase(pos, 3);
-                    auto it = path.begin() + pos;
-                    --it;
-                    while (it != path.begin() && *it != '/') {
+                    if (pos) {  // Don't erase if the dot-dot is at the beginning of the string
+                        auto it = path.begin() + pos;
                         --it;
+                        while (it != path.begin() && *it != '/') {
+                            --it;
+                        }
+                        path.erase(it, path.begin() + pos);
                     }
-                    path.erase(it, path.begin() + pos);
                 }
                 if (path.ends_with("/.")) {
                     path.erase(path.size() - 2, 2);
@@ -352,11 +357,14 @@ public:
                 if (path.ends_with("/..")) {
                     path.erase(path.size() - 3, 3);
                     auto it = path.end();
-                    --it;
-                    while (it != path.begin() && *it != '/') {
+                    if (it != path.begin()) {  // Don't erase if the dot-dot is at the beginning of
+                                               // the string
                         --it;
+                        while (it != path.begin() && *it != '/') {
+                            --it;
+                        }
+                        path.erase(it, path.end());
                     }
-                    path.erase(it, path.end());
                 }
             }
             if (path.empty()) {

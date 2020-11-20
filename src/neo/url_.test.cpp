@@ -277,6 +277,14 @@ TEST_CASE("Parse a URL") {
             .query    = "inbox=12",
             .fragment = "subid",
         },
+        // Hostnames are lower-cased, and dot-dot at top of URL just disappears
+        {
+            .given         = "https://EXAMPLE.com/../x",
+            .scheme        = "https",
+            .host          = "example.com",
+            .path          = "/x",
+            .to_string_res = "https://example.com/x",
+        },
     }));
 
     CAPTURE(expect.given);

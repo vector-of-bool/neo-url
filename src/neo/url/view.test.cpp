@@ -224,13 +224,19 @@ TEST_CASE("Parse a URL") {
         },
         // Funky userinfo provided with special characters that must be percent-encoded:
         {
-            .given         = "http://user:password:pass@exa:mple@ex.com/",
-            .scheme        = "http",
-            .username      = "user",
-            .password      = "password:pass@exa:mple",
-            .host          = "ex.com",
-            .path          = "/",
-            .to_string_res = "http://user:password:pass@exa:mple@ex.com/",
+            .given    = "http://user:password:pass@exa:mple@ex.com/",
+            .scheme   = "http",
+            .username = "user",
+            .password = "password:pass@exa:mple",
+            .host     = "ex.com",
+            .path     = "/",
+        },
+        {
+            .given  = "https://EXAMPLE.com/../x",
+            .scheme = "https",
+            .host   = "EXAMPLE.com",
+            .path   = "/../x",
+        },
         },
     }));
 
