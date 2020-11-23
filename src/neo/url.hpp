@@ -233,13 +233,13 @@ public:
 
 public:
     string_type                  scheme;
-    string_type                  username;
-    string_type                  password;
+    string_type                  username{scheme.get_allocator()};
+    string_type                  password{scheme.get_allocator()};
     opt_string                   host;
     opt_string                   query;
     opt_string                   fragment;
     std::optional<std::uint16_t> port;
-    path_vec_type                path_elems{scheme.get_allocator()};
+    string_type                  path{scheme.get_allocator()};
 
     basic_url() = default;
     explicit basic_url(allocator_type alloc)
@@ -373,10 +373,10 @@ public:
                     path.push_back('/');
                 }
             }
-            ret.path_elems.emplace_back(percent_encode<path_pct_encode_set>(path));
+            ret.path = percent_encode<path_pct_encode_set>(path);
         } else if (opts.force_full_path(ret.scheme)) {
             // The path is empty, but the scheme mandates that there be at least a slash
-            ret.path_elems.emplace_back("/", alloc);
+            ret.path = string_type("/", alloc);
         } else {
             // Empty path, but no forcing of the path. This is okay.
         }
@@ -407,19 +407,6 @@ public:
         }
     }
 
-    constexpr string_type path_string() const noexcept {
-        string_type ret{get_allocator()};
-        if (_cannot_be_a_base_url) {
-            ret.append(path_elems.front());
-        } else {
-            for (auto&& el : path_elems) {
-                // ret.push_back('/');
-                ret.append(el);
-            }
-        }
-        return ret;
-    }
-
     constexpr string_type to_string() const noexcept {
         string_type acc = scheme;
         acc.push_back(':');
@@ -443,11 +430,11 @@ public:
             acc.push_back('/');
             acc.push_back('/');
         }
-        if (!host && path_elems[0].starts_with("//")) {
+        if (!host && path.starts_with("//")) {
             acc.push_back('/');
             acc.push_back('.');
         }
-        acc.append(path_string());
+        acc.append(path);
         if (query) {
             acc.push_back('?');
             acc.append(*query);
