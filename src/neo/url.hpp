@@ -117,7 +117,7 @@ public:
                     value += static_cast<std::uint16_t>(url_detail::hex_decode(c));
                     ++ptr;
                     ++length;
-                    c = *ptr;
+                    c = ptr == str.cend() ? 0 : *ptr;
                 }
                 if (c == '.') {
                     if (length == 0) {

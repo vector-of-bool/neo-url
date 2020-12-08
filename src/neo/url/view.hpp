@@ -153,7 +153,7 @@ public:
         auto           place = begin;
         auto           iter  = place;
 
-        auto pending = [&] { return std::string_view(&*place, iter - place); };
+        auto pending = [&] { return input.substr(place - input.cbegin(), iter - place); };
 
         // Find a scheme
         // First char must be an alpha
