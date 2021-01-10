@@ -28,15 +28,14 @@ private:
     using opt_view = std::optional<view_type>;
 
 public:
-    view_type scheme;
-    view_type username;
-    view_type password;
-    opt_view  host;
-    view_type path;
-    opt_view  query;
-    opt_view  fragment;
-
+    view_type                    scheme;
+    view_type                    username;
+    view_type                    password;
+    opt_view                     host;
     std::optional<std::uint16_t> port;
+    view_type                    path;
+    opt_view                     query;
+    opt_view                     fragment;
 
     constexpr basic_url_view() = default;
 
@@ -46,10 +45,10 @@ public:
         username = url.username;
         password = url.password;
         host     = url.host;
+        port     = url.port;
         path     = url.path;
         query    = url.query;
         fragment = url.fragment;
-        port     = url.port;
     }
 
     template <typename Allocator>
