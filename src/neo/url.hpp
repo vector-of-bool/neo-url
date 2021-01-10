@@ -113,8 +113,8 @@ public:
                 std::uint16_t value  = 0;
                 int           length = 0;
                 while (length < 4 && url_detail::is_hex_digit(c)) {
-                    value *= 0x10u;
-                    value += static_cast<std::uint16_t>(url_detail::hex_decode(c));
+                    value = static_cast<std::uint16_t>(value * 0x10);
+                    value = static_cast<std::uint16_t>(value + url_detail::hex_decode(c));
                     ++ptr;
                     ++length;
                     c = ptr == str.cend() ? 0 : *ptr;
@@ -162,8 +162,8 @@ public:
                             ++ptr;
                         }
                         // Add that piece to the address
-                        addr[piece_idx] *= 0x100;
-                        addr[piece_idx] += static_cast<std::uint16_t>(ipv4_piece);
+                        addr[piece_idx] = static_cast<std::uint16_t>(addr[piece_idx] * 0x100);
+                        addr[piece_idx] = static_cast<std::uint16_t>(addr[piece_idx] + ipv4_piece);
                         ++n_num_seen;
                         if (n_num_seen == 2 || n_num_seen == 4) {
                             ++piece_idx;
