@@ -6,13 +6,9 @@
 #include "./percent.hpp"
 #include "./view.hpp"
 
-#include <neo/assert.hpp>
 #include <neo/memory.hpp>
-#include <neo/opt_ref.hpp>
-#include <neo/utf8.hpp>
 #include <neo/utility.hpp>
 
-#include <charconv>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -33,8 +29,6 @@ public:
     using url_view_type = basic_url_view<string_view_type>;
 
     using allocator_type = typename string_type::allocator_type;
-
-    using path_vec_type = std::vector<string_type, rebind_alloc_t<allocator_type, string_type>>;
 
     using opt_string = std::optional<string_type>;
 
@@ -230,7 +224,50 @@ public:
         }
     };
 
-    bool _cannot_be_a_base_url = false;
+    template <typename Options>
+    static void
+    _normalize_path_inplace(string_type& path, string_view_type scheme, Options&& opts) noexcept {
+        if (opts.normalize_paths(scheme)) {
+            auto ds  = string_view_type("/./");
+            auto dds = string_view_type("/../");
+            for (auto ds_pos = path.find(ds); ds_pos != path.npos; ds_pos = path.find(ds)) {
+                path.erase(ds_pos, 2);
+            }
+            for (auto pos = path.find(dds); pos != path.npos; pos = path.find(dds)) {
+                path.erase(pos, 3);
+                if (pos) {  // Don't erase if the dot-dot is at the beginning of the string
+                    auto it = path.begin() + pos;
+                    --it;
+                    while (it != path.begin() && *it != '/') {
+                        --it;
+                    }
+                    path.erase(it, path.begin() + pos);
+                }
+            }
+            if (path.ends_with("/.")) {
+                path.erase(path.size() - 2, 2);
+            }
+            if (path.ends_with("/..")) {
+                path.erase(path.size() - 3, 3);
+                auto it = path.end();
+                if (it != path.begin()) {  // Don't erase if the dot-dot is at the beginning of
+                                           // the string
+                    --it;
+                    while (it != path.begin() && *it != '/') {
+                        --it;
+                    }
+                    path.erase(it, path.end());
+                }
+            }
+        }
+        if (path.empty()) {
+            // Path _became_ empty via our normalization
+            if (opts.force_full_path(scheme)) {
+                path.push_back('/');
+            }
+        }
+        percent_encode_inplace<path_pct_encode_set>(path);
+    }
 
 public:
     string_type                  scheme;
@@ -279,6 +316,61 @@ public:
             throw url_validation_error(std::string(err->error));
         }
         return std::get<basic_url>(std::move(res));
+    }
+
+    [[nodiscard]] constexpr basic_url normalized() const {
+        return noramlize(*this, get_allocator());
+    }
+
+    constexpr void normalize() { *this = normalized(); }
+
+    basic_url& clear_path() noexcept {
+        path = make_empty_string_from(path);
+        _normalize_path_inplace(path, scheme, default_url_options{});
+        return *this;
+    }
+
+    basic_url& append_path(string_view_type view) noexcept {
+        path.reserve(path.size() + view.size());
+        if (path.empty() || path.back() != '/') {
+            path.push_back('/');
+        }
+        while (!view.empty() && view.front() == '/') {
+            view.remove_prefix(1);
+        }
+        path.append(view);
+        _normalize_path_inplace(path, scheme, default_url_options{});
+        return *this;
+    }
+
+    basic_url& operator/=(string_view_type view) noexcept {
+        append_path(view);
+        return *this;
+    }
+
+    basic_url operator/(string_view_type view) const noexcept {
+        auto cp = *this;
+        cp /= view;
+        return cp;
+    }
+
+    basic_url& path_pop_back() noexcept {
+        auto riter = path.rbegin();
+        auto rstop = path.rend();
+        while (riter != rstop && *riter == '/') {
+            ++riter;
+        }
+        while (riter != rstop && *riter != '/') {
+            ++riter;
+        }
+        while (riter != rstop && *riter == '/') {
+            ++riter;
+        }
+        path.erase(riter.base(), path.end());
+        if (path.empty() && default_url_options::force_full_path(scheme)) {
+            path.push_back('/');
+        }
+        return *this;
     }
 
     template <typename Options = default_url_options>
@@ -344,47 +436,8 @@ public:
 
         if (!view.path.empty()) {
             // Nonempty path, but we may need to "normalize" it
-            auto path = string_type(view.path, alloc);
-            if (opts.normalize_paths(ret.scheme)) {
-                auto ds  = string_view_type("/./");
-                auto dds = string_view_type("/../");
-                for (auto ds_pos = path.find(ds); ds_pos != path.npos; ds_pos = path.find(ds)) {
-                    path.erase(ds_pos, 2);
-                }
-                for (auto pos = path.find(dds); pos != path.npos; pos = path.find(dds)) {
-                    path.erase(pos, 3);
-                    if (pos) {  // Don't erase if the dot-dot is at the beginning of the string
-                        auto it = path.begin() + pos;
-                        --it;
-                        while (it != path.begin() && *it != '/') {
-                            --it;
-                        }
-                        path.erase(it, path.begin() + pos);
-                    }
-                }
-                if (path.ends_with("/.")) {
-                    path.erase(path.size() - 2, 2);
-                }
-                if (path.ends_with("/..")) {
-                    path.erase(path.size() - 3, 3);
-                    auto it = path.end();
-                    if (it != path.begin()) {  // Don't erase if the dot-dot is at the beginning of
-                                               // the string
-                        --it;
-                        while (it != path.begin() && *it != '/') {
-                            --it;
-                        }
-                        path.erase(it, path.end());
-                    }
-                }
-            }
-            if (path.empty()) {
-                // Path _became_ empty via our normalization
-                if (opts.force_full_path(ret.scheme)) {
-                    path.push_back('/');
-                }
-            }
-            ret.path = percent_encode<path_pct_encode_set>(path);
+            ret.path = string_type(view.path, alloc);
+            _normalize_path_inplace(ret.path, ret.scheme, opts);
         } else if (opts.force_full_path(ret.scheme)) {
             // The path is empty, but the scheme mandates that there be at least a slash
             ret.path = string_type("/", alloc);

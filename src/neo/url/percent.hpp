@@ -157,43 +157,27 @@ constexpr string_type_t<String> percent_decode(const String& str) {
 }
 
 template <typename EncodeSet, typename String>
-constexpr string_type_t<String> percent_encode(const String& str) {
+constexpr void percent_encode_inplace(String& str) {
     using char_type = typename string_type_t<String>::value_type;
     using std::byte;
-    auto ret = make_empty_string_from(str);
-    if (str.size() >= 3) {
-        if (byte(str[0]) == byte('&') && byte(str[1]) == byte('#')
-            && byte(str[str.size() - 1]) == byte(';')) {
-            // 2.1:
-            ret.push_back(char_type('%'));
-            ret.push_back(char_type('2'));
-            ret.push_back(char_type('6'));
-            ret.push_back(char_type('%'));
-            ret.push_back(char_type('2'));
-            ret.push_back(char_type('3'));
-            for (auto it = std::next(str.cbegin(), 2), end = std::prev(str.cend(), 1); it != end;
-                 ++it) {
-                ret.push_back(char_type(*it));
-            }
-            ret.push_back(char_type('%'));
-            ret.push_back(char_type('3'));
-            ret.push_back(char_type('B'));
-            return ret;
-        }
-    }
-    for (auto b_ : str) {
-        auto b = byte(b_);
+    for (std::size_t idx = 0; idx < str.size(); ++idx) {
+        auto b = byte(str[idx]);
         if (EncodeSet::contains(b)) {
-            ret.push_back(char_type('%'));
-            auto                  high  = int(b) >> 4;
-            auto                  low   = int(b) & 0b1111;
+            auto high  = int(b) >> 4;
+            auto low   = int(b) & 0b1111;
+            str[idx++] = char_type('%');
+            // Fast-access char constants:
             constexpr const char* chars = "0123456789ABCDEF";
-            ret.push_back(char_type(chars[high]));
-            ret.push_back(char_type(chars[low]));
-        } else {
-            ret.push_back(char_type(b));
+            str.insert(idx++, 1, char_type(chars[high]));
+            str.insert(idx++, 1, char_type(chars[low]));
         }
     }
+}
+
+template <typename EncodeSet, typename String>
+constexpr string_type_t<String> percent_encode(const String& str) {
+    auto ret = make_string(str);
+    percent_encode_inplace<EncodeSet>(ret);
     return ret;
 }
 

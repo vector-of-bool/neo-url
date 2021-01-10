@@ -335,3 +335,37 @@ TEST_CASE("Parse a URL") {
     }
     CHECK(result.to_string() == expect.to_string_res);
 }
+
+TEST_CASE("Manipulating") {
+    auto url = neo::url::parse("http://example.org");
+    url.clear_path();
+    CHECK(url.path == "/");  // HTTP, so keepts its path
+    url.append_path("foo");
+    CHECK(url.path == "/foo");
+    // Leading slash is ignored
+    url.append_path("/bar");
+    CHECK(url.path == "/foo/bar");
+    // dot-dot erases a path element by normalization
+    url.append_path("/../baz");
+    CHECK(url.path == "/foo/baz");
+    url.append_path("../quux");
+    CHECK(url.path == "/foo/quux");
+    // /= operator does the same thing:
+    url /= "eggs";
+    CHECK(url.path == "/foo/quux/eggs");
+    // Trailing '/' remains:
+    url /= "salad/";
+    CHECK(url.path == "/foo/quux/eggs/salad/");
+
+    // Check popping path elements
+    url.path = "/foo/quux/baz";
+    url.path_pop_back();
+    CHECK(url.path == "/foo/quux");
+    url.path = "/foo/bar/";  // Trailing '/' doesn't matter
+    url.path_pop_back();
+    CHECK(url.path == "/foo");
+    url.path_pop_back();
+    CHECK(url.path == "/");  // HTTP keeps the top-level '/'
+    url.path_pop_back();
+    CHECK(url.path == "/");  // Nothing more to pop
+}

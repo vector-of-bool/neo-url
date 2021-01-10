@@ -6,7 +6,6 @@
 #include <neo/assert.hpp>
 #include <neo/memory.hpp>
 #include <neo/string.hpp>
-#include <neo/utf8.hpp>
 #include <neo/utility.hpp>
 
 #include <charconv>
@@ -128,10 +127,10 @@ public:
      *
      * @return A basic_url<> that has normalized the URL view
      */
-    [[nodiscard]] constexpr auto normalize() const {
+    [[nodiscard]] constexpr auto normalized() const {
         return normalize(std::allocator<char_type>{});
     }
-    [[nodiscard]] constexpr auto try_normalize() const noexcept {
+    [[nodiscard]] constexpr auto try_normalized() const noexcept {
         return try_normalize(std::allocator<char_type>{});
     }
 
