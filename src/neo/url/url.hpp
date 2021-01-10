@@ -248,7 +248,7 @@ public:
 
     constexpr allocator_type get_allocator() const noexcept { return scheme.get_allocator(); }
 
-    constexpr static std::optional<std::uint16_t>
+    [[nodiscard]] constexpr static std::optional<std::uint16_t>
     default_port_for_scheme(string_view_type s) noexcept {
         if (s == "ftp")
             return 21;
@@ -262,13 +262,17 @@ public:
             return 443;
         return std::nullopt;
     }
-    constexpr auto default_port() const noexcept { return default_port_for_scheme(scheme); }
-    constexpr auto port_or_default_port() const noexcept { return port ? port : default_port(); }
-    constexpr auto port_or_default_port_or(std::uint16_t p) const noexcept {
+    [[nodiscard]] constexpr auto default_port() const noexcept {
+        return default_port_for_scheme(scheme);
+    }
+    [[nodiscard]] constexpr auto port_or_default_port() const noexcept {
+        return port ? port : default_port();
+    }
+    [[nodiscard]] constexpr auto port_or_default_port_or(std::uint16_t p) const noexcept {
         return port_or_default_port().value_or(p);
     }
 
-    constexpr static basic_url parse(string_view_type input) {
+    [[nodiscard]] constexpr static basic_url parse(string_view_type input) {
         auto res = try_parse(input);
         auto err = std::get_if<url_parse_error>(&res);
         if (err) {
@@ -278,7 +282,7 @@ public:
     }
 
     template <typename Options = default_url_options>
-    constexpr static basic_url
+    [[nodiscard]] constexpr static basic_url
     normalize(const url_view_type view, allocator_type alloc, Options opts = {}) {
         auto v   = try_normalize(view, alloc, opts);
         auto err = std::get_if<url_parse_error>(&v);
@@ -289,7 +293,7 @@ public:
     }
 
     template <typename Options = default_url_options>
-    constexpr static std::variant<basic_url, url_parse_error>
+    [[nodiscard]] constexpr static std::variant<basic_url, url_parse_error>
     try_normalize(const url_view_type view, allocator_type alloc, Options opts = {}) noexcept {
         basic_url   ret{alloc};
         string_type empty_string{alloc};
@@ -404,7 +408,7 @@ public:
     }
 
     template <typename Options = default_url_options>
-    static constexpr std::variant<basic_url, url_parse_error>
+    [[nodiscard]] static constexpr std::variant<basic_url, url_parse_error>
     try_parse(string_view_type input, Options opts = {}) noexcept {
         auto sp = url_view_type::try_split(input, opts);
         if (std::holds_alternative<url_parse_error>(sp)) {
@@ -414,12 +418,12 @@ public:
         }
     }
 
-    constexpr string_type to_string() const noexcept {
+    [[nodiscard]] constexpr string_type to_string() const noexcept {
         url_view_type view = *this;
         return view.to_string();
     }
 
-    constexpr friend string_type to_string(const basic_url& self) noexcept {
+    [[nodiscard]] constexpr friend string_type to_string(const basic_url& self) noexcept {
         return self.to_string();
     }
 };

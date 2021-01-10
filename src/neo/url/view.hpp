@@ -53,7 +53,7 @@ public:
     }
 
     template <typename Allocator>
-    constexpr auto to_string(Allocator alloc) const noexcept {
+    [[nodiscard]] constexpr auto to_string(Allocator alloc) const noexcept {
         auto       ret               = neo::string_type_t<view_type, Allocator>(alloc);
         const bool needs_escape_path = !host && path.starts_with("//");
 
@@ -120,7 +120,7 @@ public:
         return ret;
     }
 
-    constexpr std::basic_string<char_type> to_string() const noexcept {
+    [[nodiscard]] constexpr std::basic_string<char_type> to_string() const noexcept {
         return to_string(std::allocator<char_type>{});
     }
 
@@ -129,13 +129,15 @@ public:
      *
      * @return A basic_url<> that has normalized the URL view
      */
-    constexpr auto normalize() const { return normalize(std::allocator<char_type>{}); }
-    constexpr auto try_normalize() const noexcept {
+    [[nodiscard]] constexpr auto normalize() const {
+        return normalize(std::allocator<char_type>{});
+    }
+    [[nodiscard]] constexpr auto try_normalize() const noexcept {
         return try_normalize(std::allocator<char_type>{});
     }
 
     template <typename Allocator, typename Options = default_url_options>
-    constexpr auto normalize(Allocator alloc, Options&& opts = {}) const {
+    [[nodiscard]] constexpr auto normalize(Allocator alloc, Options&& opts = {}) const {
         using url_type = basic_url<std::basic_string<char_type,
                                                      typename view_type::traits_type,
                                                      rebind_alloc_t<Allocator, char_type>>>;
@@ -143,7 +145,7 @@ public:
     }
 
     template <typename Allocator, typename Options = default_url_options>
-    constexpr auto try_normalize(Allocator alloc, Options&& opts = {}) const {
+    [[nodiscard]] constexpr auto try_normalize(Allocator alloc, Options&& opts = {}) const {
         using url_type = basic_url<std::basic_string<char_type,
                                                      typename view_type::traits_type,
                                                      rebind_alloc_t<Allocator, char_type>>>;
@@ -151,7 +153,7 @@ public:
     }
 
     template <typename Options = default_url_options>
-    static constexpr basic_url_view split(view_type input, Options opts = {}) {
+    [[nodiscard]] static constexpr basic_url_view split(view_type input, Options opts = {}) {
         auto res = try_split(input, opts);
         auto err = std::get_if<url_parse_error>(&res);
         if (err) {
@@ -161,7 +163,7 @@ public:
     }
 
     template <typename Options = default_url_options>
-    static constexpr std::variant<basic_url_view, url_parse_error>
+    [[nodiscard]] static constexpr std::variant<basic_url_view, url_parse_error>
     try_split(view_type input, Options opts = {}) noexcept {
         if (input.empty()) {
             return url_parse_error{"Empty string cannot be a valid URL"};
