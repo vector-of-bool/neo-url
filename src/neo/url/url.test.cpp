@@ -1,5 +1,4 @@
 #include "./url.hpp"
-#include "./url/view.hpp"
 
 #include <catch2/catch.hpp>
 
@@ -209,6 +208,14 @@ TEST_CASE("Parse a URL") {
             .host          = "",
             .path          = "/",
             .to_string_res = "file:///",
+        },
+        // Files without an empty authority receive one:
+        {
+            .given         = "file:/home/joe/Documents/stuff.txt",
+            .scheme        = "file",
+            .host          = "",
+            .path          = "/home/joe/Documents/stuff.txt",
+            .to_string_res = "file:///home/joe/Documents/stuff.txt",
         },
         // Simple relative path on non-special scheme:
         {
