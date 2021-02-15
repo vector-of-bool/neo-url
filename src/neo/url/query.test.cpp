@@ -20,4 +20,8 @@ TEST_CASE("Walk through a query string") {
     CHECK(it->key_raw() == "foo");
     CHECK(it->value_raw() == "bar%20baz");
     CHECK(it->value_decoded() == "bar baz");
+
+    for (auto el [[maybe_unused]] : qsv) {
+        // ... Just check that we can iterate ...
+    }
 }

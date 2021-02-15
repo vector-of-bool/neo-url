@@ -5,7 +5,7 @@
 
 #include <neo/assert.hpp>
 #include <neo/memory.hpp>
-#include <neo/utf8.hpp>
+#include <neo/string.hpp>
 #include <neo/utility.hpp>
 
 #include <charconv>
@@ -27,24 +27,33 @@ private:
     using opt_view = std::optional<view_type>;
 
 public:
-    view_type scheme;
-    view_type username;
-    view_type password;
-    opt_view  host;
-    view_type path;
-    opt_view  query;
-    opt_view  fragment;
-
+    view_type                    scheme;
+    view_type                    username;
+    view_type                    password;
+    opt_view                     host;
     std::optional<std::uint16_t> port;
+    view_type                    path;
+    opt_view                     query;
+    opt_view                     fragment;
 
     constexpr basic_url_view() = default;
 
+    template <typename StringType>
+    constexpr basic_url_view(const basic_url<StringType>& url) {
+        scheme   = url.scheme;
+        username = url.username;
+        password = url.password;
+        host     = url.host;
+        port     = url.port;
+        path     = url.path;
+        query    = url.query;
+        fragment = url.fragment;
+    }
+
     template <typename Allocator>
-    constexpr auto to_string(Allocator alloc) const noexcept {
-        std::basic_string<char_type,
-                          typename view_type::traits_type,
-                          rebind_alloc_t<Allocator, char_type>>
-            ret(alloc);
+    [[nodiscard]] constexpr auto to_string(Allocator alloc) const noexcept {
+        auto       ret               = neo::string_type_t<view_type, Allocator>(alloc);
+        const bool needs_escape_path = !host && path.starts_with("//");
 
         const std::size_t reserve = 0                         //
             + scheme.size() + 1                               //
@@ -54,6 +63,7 @@ public:
             + (password.empty() ? 0 : (password.size() + 1))  //
             + path.size()                                     //
             + (query ? query->size() + 1 : 0)                 //
+            + (needs_escape_path ? 2 : 0)                     //
             + (fragment ? fragment->size() + 1 : 0);
 
         ret.reserve(reserve);
@@ -78,6 +88,10 @@ public:
                 auto      conv_res    = std::to_chars(charbuf, charbuf + sizeof(charbuf), *port);
                 ret.insert(ret.end(), charbuf, conv_res.ptr);
             }
+        }
+        if (needs_escape_path) {
+            ret.push_back('/');
+            ret.push_back('.');
         }
         ret.append(path);
         if (query) {
@@ -104,33 +118,40 @@ public:
         return ret;
     }
 
-    constexpr std::basic_string<char_type> to_string() const noexcept {
+    [[nodiscard]] constexpr std::basic_string<char_type> to_string() const noexcept {
         return to_string(std::allocator<char_type>{});
     }
 
-    template <typename Allocator, typename Options = default_url_parse_options>
-    constexpr auto normalize(Allocator alloc, Options&& opts = {}) const {
+    /**
+     * @brief Convert the URL to its "normal form", and realize as a basic_url<> object
+     *
+     * @return A basic_url<> that has normalized the URL view
+     */
+    [[nodiscard]] constexpr auto normalized() const {
+        return normalize(std::allocator<char_type>{});
+    }
+    [[nodiscard]] constexpr auto try_normalized() const noexcept {
+        return try_normalize(std::allocator<char_type>{});
+    }
+
+    template <typename Allocator, typename Options = default_url_options>
+    [[nodiscard]] constexpr auto normalize(Allocator alloc, Options&& opts = {}) const {
         using url_type = basic_url<std::basic_string<char_type,
                                                      typename view_type::traits_type,
                                                      rebind_alloc_t<Allocator, char_type>>>;
         return url_type::normalize(*this, alloc, opts);
     }
 
-    template <typename Allocator, typename Options = default_url_parse_options>
-    constexpr auto try_normalize(Allocator alloc, Options&& opts = {}) const {
+    template <typename Allocator, typename Options = default_url_options>
+    [[nodiscard]] constexpr auto try_normalize(Allocator alloc, Options&& opts = {}) const {
         using url_type = basic_url<std::basic_string<char_type,
                                                      typename view_type::traits_type,
                                                      rebind_alloc_t<Allocator, char_type>>>;
         return url_type::try_normalize(*this, alloc, opts);
     }
 
-    constexpr auto normalize() const { return normalize(std::allocator<char_type>{}); }
-    constexpr auto try_normalize() const noexcept {
-        return try_normalize(std::allocator<char_type>{});
-    }
-
-    template <typename Options = default_url_parse_options>
-    static constexpr basic_url_view split(view_type input, Options opts = {}) {
+    template <typename Options = default_url_options>
+    [[nodiscard]] static constexpr basic_url_view split(view_type input, Options opts = {}) {
         auto res = try_split(input, opts);
         auto err = std::get_if<url_parse_error>(&res);
         if (err) {
@@ -139,8 +160,8 @@ public:
         return std::get<basic_url_view>(res);
     }
 
-    template <typename Options = default_url_parse_options>
-    static constexpr std::variant<basic_url_view, url_parse_error>
+    template <typename Options = default_url_options>
+    [[nodiscard]] static constexpr std::variant<basic_url_view, url_parse_error>
     try_split(view_type input, Options opts = {}) noexcept {
         if (input.empty()) {
             return url_parse_error{"Empty string cannot be a valid URL"};
@@ -287,8 +308,5 @@ public:
         return url;
     }
 };
-
-using url_view   = basic_url_view<std::string_view>;
-using u8url_view = basic_url_view<std::u8string_view>;
 
 }  // namespace neo

@@ -69,6 +69,7 @@ public:
 
         constexpr bool equal_to(iterator o) const noexcept { return o._s_it == _s_it; }
         constexpr bool at_end() const noexcept { return _s_it == _s_end; }
+        constexpr bool operator==(sentinel_type) const noexcept { return at_end(); }
         constexpr void increment() noexcept {
             neo_assert(expects, !at_end(), "Advance of past-the-end query string view iterator");
             _s_it = _adv_until_sep_or_stop(_s_it, _s_end);

@@ -259,6 +259,12 @@ TEST_CASE("Parse a URL") {
             .query    = "query",
             .fragment = "fragment",
         },
+        // File URLs without an authority are okay:
+        {
+            .given  = "file:/home/joe/Documents/stuff.txt",
+            .scheme = "file",
+            .path   = "/home/joe/Documents/stuff.txt",
+        },
     }));
 
     INFO("Parsing URL: " << expect.given);

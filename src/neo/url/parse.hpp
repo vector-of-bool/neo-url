@@ -33,13 +33,17 @@ constexpr bool is_ascii_alphanumeric(char32_t c) noexcept {
 
 }  // namespace url_detail
 
-struct default_url_parse_options {
+struct default_url_options {
     constexpr static bool is_special_scheme(std::string_view sv) {
         return sv == oper::any_of("http", "https", "ftp", "file", "ws", "wss");
     }
 
+    constexpr static bool implicit_empty_authority(std::string_view scheme) {
+        return scheme == "file";
+    }
+
     constexpr static bool authority_required(std::string_view scheme) {
-        return is_special_scheme(scheme);
+        return is_special_scheme(scheme) && !implicit_empty_authority(scheme);
     }
 
     constexpr static bool force_full_path(std::string_view scheme) {
