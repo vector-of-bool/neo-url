@@ -23,7 +23,7 @@ TEST_CASE("Bad URLs") {
         "https://////example.com///",
         // Using 'c|' for Windows drive letters is invalid.
         // (Soft error in spec, hard error in neo-url)
-        "file:///c|/demo",
+        "file://c|/demo",
         // Spaces in path are forbidden. (Soft error in spec, hard error in neo-url)
         "https://example.org/foo bar",
         // Spaces in hostname are never allowed, even per spec

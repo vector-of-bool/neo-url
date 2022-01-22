@@ -31,12 +31,27 @@ constexpr bool is_ascii_alphanumeric(char32_t c) noexcept {
     return is_ascii_alpha(c) || is_dec_digit(c);
 }
 
+constexpr bool starts_with_win_drive_letter(auto&& sv) {
+    if (sv.size() < 2) {
+        return false;
+    }
+    if (!is_ascii_alpha(sv[0])) {
+        return false;
+    }
+    if (sv[1] == ':' || sv[1] == '|') {
+        return true;
+    }
+    return false;
+}
+
 }  // namespace url_detail
 
 struct default_url_options {
     constexpr static bool is_special_scheme(std::string_view sv) {
         return sv == oper::any_of("http", "https", "ftp", "file", "ws", "wss");
     }
+
+    constexpr static bool is_file_scheme(std::string_view scheme) { return scheme == "file"; }
 
     constexpr static bool implicit_empty_authority(std::string_view scheme) {
         return scheme == "file";

@@ -217,6 +217,30 @@ TEST_CASE("Parse a URL") {
             .path          = "/home/joe/Documents/stuff.txt",
             .to_string_res = "file:///home/joe/Documents/stuff.txt",
         },
+        // Relative paths are okay:
+        {
+            .given         = "file:stuff.txt",
+            .scheme        = "file",
+            .host          = "",
+            .path          = "stuff.txt",
+            .to_string_res = "file://stuff.txt",
+        },
+        // Handle Windows drive letters
+        {
+            .given         = "file://C:/Users/joe/Documents/stuff.txt",
+            .scheme        = "file",
+            .host          = "",
+            .path          = "C:/Users/joe/Documents/stuff.txt",
+            .to_string_res = "file://C:/Users/joe/Documents/stuff.txt",
+        },
+        // Handle Windows drive letters without authority
+        {
+            .given         = "file:C:/Users/joe/Documents/stuff.txt",
+            .scheme        = "file",
+            .host          = "",
+            .path          = "C:/Users/joe/Documents/stuff.txt",
+            .to_string_res = "file://C:/Users/joe/Documents/stuff.txt",
+        },
         // Simple relative path on non-special scheme:
         {
             .given  = "hello:world",
