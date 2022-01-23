@@ -224,7 +224,9 @@ public:
             if (*iter == '/' && url.scheme != "file") {
                 return url_parse_error{"Invalid URL string: Excessive slashes following shceme"};
             }
-            while (iter != end && *iter == oper::none_of('/', '?', '#')) {
+            while (iter != end  //
+                   and *iter == oper::none_of('/', '?', '#')
+                   and not(opts.is_special_scheme(url.scheme) and *iter == '\\')) {
                 if (!is_url_char(*iter) && *iter != '%') {
                     return url_parse_error{"Invalid character in URL string host segment"};
                 }
@@ -232,7 +234,8 @@ public:
             }
 
             const auto authority_str = pending();
-            if (opts.is_file_scheme(url.scheme) && url_detail::starts_with_win_drive_letter(authority_str)) {
+            if (opts.is_file_scheme(url.scheme)
+                && url_detail::starts_with_win_drive_letter(authority_str)) {
                 // Do not parse an authority. This is just a Windows path
             } else {
                 const auto at_pos = authority_str.rfind('@');
@@ -273,8 +276,11 @@ public:
             // No scheme, but that's okay for this URL scheme
         }
 
-        while (iter != end && *iter == oper::none_of('?', '#')) {
-            if (!is_url_char(*iter) && *iter != '%') {
+        while (iter != end and *iter == oper::none_of('?', '#')) {
+            if (!is_url_char(*iter)  //
+                and *iter != '%'     //
+                and not(opts.is_special_scheme(url.scheme)
+                        and *iter == neo::oper::any_of('/', '\\'))) {
                 return url_parse_error{"Invalid character in URL string path segment"};
             }
             ++iter;

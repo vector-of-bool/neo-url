@@ -228,6 +228,11 @@ public:
     static void
     _normalize_path_inplace(string_type& path, string_view_type scheme, Options&& opts) noexcept {
         if (opts.normalize_paths(scheme)) {
+            for (auto& c : path) {
+                if (c == '\\') {
+                    c = '/';
+                }
+            }
             auto ds  = string_view_type("/./");
             auto dds = string_view_type("/../");
             for (auto ds_pos = path.find(ds); ds_pos != path.npos; ds_pos = path.find(ds)) {
@@ -265,6 +270,9 @@ public:
             if (opts.force_full_path(scheme)) {
                 path.push_back('/');
             }
+        }
+        if (url_detail::starts_with_win_drive_letter(path)) {
+            path[1] = ':';
         }
         percent_encode_inplace<path_pct_encode_set>(path);
     }
@@ -319,7 +327,7 @@ public:
     }
 
     [[nodiscard]] constexpr basic_url normalized() const {
-        return noramlize(*this, get_allocator());
+        return normalize(*this, get_allocator());
     }
 
     constexpr void normalize() { *this = normalized(); }
@@ -478,6 +486,21 @@ public:
 
     [[nodiscard]] constexpr friend string_type to_string(const basic_url& self) noexcept {
         return self.to_string();
+    }
+
+    template <typename Path>
+    [[nodiscard]] constexpr static basic_url for_file_path(Path&& path) noexcept requires requires {
+        { path.generic_string() } -> std::convertible_to<string_type>;
+    }
+    { return for_file_path(path.generic_string()); }
+
+    [[nodiscard]] constexpr static basic_url for_file_path(string_type path) noexcept {
+        neo::percent_encode_inplace<path_pct_encode_set>(path);
+        basic_url ret{neo::get_string_allocator(path)};
+        ret.scheme = neo::make_string(string_view_type{"file"}, neo::get_string_allocator(path));
+        ret.host   = neo::make_empty_string_from(path);
+        ret.path   = std::move(path);
+        return ret;
     }
 };
 

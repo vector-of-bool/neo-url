@@ -9,7 +9,17 @@ namespace {
 
 enum opt_comma { comma, no_comma };
 
-void print_val(std::string_view val) { std::cout << '"' << val << '"'; }
+void print_val(std::string_view val) {
+    std::cout.put('"');
+    for (auto c : val) {
+        if (c == '\\' or c == '"') {
+            std::cout.put('\\');
+        }
+        std::cout.put(c);
+    }
+    std::cout.put('"');
+}
+
 void print_val(int i) { std::cout << i; }
 
 template <typename T>

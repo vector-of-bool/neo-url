@@ -393,3 +393,18 @@ TEST_CASE("Manipulating") {
     url.path_pop_back();
     CHECK(url.path == "/");  // Nothing more to pop
 }
+
+TEST_CASE("For file paths") {
+    auto url = neo::url::for_file_path("/foo/bar.txt");
+    CHECK(url.to_string() == "file:///foo/bar.txt");
+    CHECK_NOTHROW(neo::url::parse(url.to_string()));
+
+    url = neo::url::for_file_path("C:/Users/Joe/My Documents/file.txt");
+    CHECK(url.to_string() == "file://C:/Users/Joe/My%20Documents/file.txt");
+    CHECK_NOTHROW(neo::url::parse(url.to_string()));
+
+    url = neo::url::for_file_path("C:\\Users\\Joe\\My Documents\\file.txt");
+    CHECK(url.to_string() == "file://C:\\Users\\Joe\\My%20Documents\\file.txt");
+    CHECK_NOTHROW(neo::url::parse(url.to_string()));
+    CHECK(url.normalized().to_string() == "file://C:/Users/Joe/My%20Documents/file.txt");
+}

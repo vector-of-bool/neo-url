@@ -39,6 +39,9 @@ constexpr bool starts_with_win_drive_letter(auto&& sv) {
         return false;
     }
     if (sv[1] == ':' || sv[1] == '|') {
+        if (sv.size() >= 3) {
+            return sv[2] == neo::oper::any_of('/', '\\', '?', '#');
+        }
         return true;
     }
     return false;
