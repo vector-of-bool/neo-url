@@ -4,6 +4,6 @@
     "namespace": "neo",
     "test_driver": "Catch-Main",
     "depends": [
-        "neo-fun^0.5.5"
+        "neo-fun^0.10.0"
     ]
 }
