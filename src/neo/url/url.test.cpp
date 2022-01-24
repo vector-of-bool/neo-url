@@ -217,6 +217,30 @@ TEST_CASE("Parse a URL") {
             .path          = "/home/joe/Documents/stuff.txt",
             .to_string_res = "file:///home/joe/Documents/stuff.txt",
         },
+        // Relative paths are okay:
+        {
+            .given         = "file:stuff.txt",
+            .scheme        = "file",
+            .host          = "",
+            .path          = "stuff.txt",
+            .to_string_res = "file://stuff.txt",
+        },
+        // Handle Windows drive letters
+        {
+            .given         = "file://C:/Users/joe/Documents/stuff.txt",
+            .scheme        = "file",
+            .host          = "",
+            .path          = "C:/Users/joe/Documents/stuff.txt",
+            .to_string_res = "file://C:/Users/joe/Documents/stuff.txt",
+        },
+        // Handle Windows drive letters without authority
+        {
+            .given         = "file:C:/Users/joe/Documents/stuff.txt",
+            .scheme        = "file",
+            .host          = "",
+            .path          = "C:/Users/joe/Documents/stuff.txt",
+            .to_string_res = "file://C:/Users/joe/Documents/stuff.txt",
+        },
         // Simple relative path on non-special scheme:
         {
             .given  = "hello:world",
@@ -368,4 +392,19 @@ TEST_CASE("Manipulating") {
     CHECK(url.path == "/");  // HTTP keeps the top-level '/'
     url.path_pop_back();
     CHECK(url.path == "/");  // Nothing more to pop
+}
+
+TEST_CASE("For file paths") {
+    auto url = neo::url::for_file_path("/foo/bar.txt");
+    CHECK(url.to_string() == "file:///foo/bar.txt");
+    CHECK_NOTHROW(neo::url::parse(url.to_string()));
+
+    url = neo::url::for_file_path("C:/Users/Joe/My Documents/file.txt");
+    CHECK(url.to_string() == "file://C:/Users/Joe/My%20Documents/file.txt");
+    CHECK_NOTHROW(neo::url::parse(url.to_string()));
+
+    url = neo::url::for_file_path("C:\\Users\\Joe\\My Documents\\file.txt");
+    CHECK(url.to_string() == "file://C:\\Users\\Joe\\My%20Documents\\file.txt");
+    CHECK_NOTHROW(neo::url::parse(url.to_string()));
+    CHECK(url.normalized().to_string() == "file://C:/Users/Joe/My%20Documents/file.txt");
 }

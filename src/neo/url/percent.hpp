@@ -157,19 +157,20 @@ constexpr string_type_t<String> percent_decode(const String& str) {
 }
 
 template <typename EncodeSet, typename String>
-constexpr void percent_encode_inplace(String& str) {
+constexpr void percent_encode_inplace(String& str) noexcept {
     using char_type = typename string_type_t<String>::value_type;
-    using std::byte;
     for (std::size_t idx = 0; idx < str.size(); ++idx) {
-        auto b = byte(str[idx]);
+        auto b = std::byte(str[idx]);
         if (EncodeSet::contains(b)) {
-            auto high  = int(b) >> 4;
-            auto low   = int(b) & 0b1111;
-            str[idx++] = char_type('%');
+            auto high = int(b) >> 4;
+            auto low  = int(b) & 0b1111;
+            str[idx]  = char_type('%');
             // Fast-access char constants:
             constexpr const char* chars = "0123456789ABCDEF";
-            str.insert(idx++, 1, char_type(chars[high]));
-            str.insert(idx++, 1, char_type(chars[low]));
+            ++idx;
+            str.insert(idx, 1, char_type(chars[high]));
+            ++idx;
+            str.insert(idx, 1, char_type(chars[low]));
         }
     }
 }

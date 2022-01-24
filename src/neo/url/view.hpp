@@ -198,17 +198,21 @@ public:
         }
 
         url.scheme = pending();
+
+        // Skip the colon
         ++iter;
         place = iter;
 
+        // Default username and password
         url.username = pending();
         url.password = pending();
 
-        if (iter == end || ++iter == end) {
+        if (iter == end || std::next(iter) == end) {
             url.path = pending();
             return url;
         }
 
+        ++iter;
         ++iter;
         if (pending() == "//") {
             // Split the authority segment
@@ -220,7 +224,9 @@ public:
             if (*iter == '/' && url.scheme != "file") {
                 return url_parse_error{"Invalid URL string: Excessive slashes following shceme"};
             }
-            while (iter != end && *iter == oper::none_of('/', '?', '#')) {
+            while (iter != end  //
+                   and *iter == oper::none_of('/', '?', '#')
+                   and not(opts.is_special_scheme(url.scheme) and *iter == '\\')) {
                 if (!is_url_char(*iter) && *iter != '%') {
                     return url_parse_error{"Invalid character in URL string host segment"};
                 }
@@ -228,35 +234,40 @@ public:
             }
 
             const auto authority_str = pending();
-            const auto at_pos        = authority_str.rfind('@');
-            auto       host          = authority_str;
-            if (at_pos != npos) {
-                auto userinfo = authority_str.substr(0, at_pos);
-                auto colpos   = userinfo.find(':');
-                if (colpos != npos) {
-                    url.username = userinfo.substr(0, colpos);
-                    url.password = userinfo.substr(colpos + 1);
-                } else {
-                    url.username = userinfo;
-                }
-                host = authority_str.substr(at_pos + 1);
-            }
-
-            auto host_colpos = host.rfind(':');
-            if (host_colpos != npos) {
-                url.host               = std::make_optional(host.substr(0, host_colpos));
-                auto          port_str = host.substr(host_colpos + 1);
-                std::uint16_t port     = 0;
-                auto          conv_res
-                    = std::from_chars(port_str.data(), port_str.data() + port_str.size(), port);
-                if (conv_res.ec != std::errc{}) {
-                    return url_parse_error{"Invalid port in URL string"};
-                }
-                url.port = std::make_optional(port);
+            if (opts.is_file_scheme(url.scheme)
+                && url_detail::starts_with_win_drive_letter(authority_str)) {
+                // Do not parse an authority. This is just a Windows path
             } else {
-                url.host = std::make_optional(host);
+                const auto at_pos = authority_str.rfind('@');
+                auto       host   = authority_str;
+                if (at_pos != npos) {
+                    auto userinfo = authority_str.substr(0, at_pos);
+                    auto colpos   = userinfo.find(':');
+                    if (colpos != npos) {
+                        url.username = userinfo.substr(0, colpos);
+                        url.password = userinfo.substr(colpos + 1);
+                    } else {
+                        url.username = userinfo;
+                    }
+                    host = authority_str.substr(at_pos + 1);
+                }
+
+                auto host_colpos = host.rfind(':');
+                if (host_colpos != npos) {
+                    url.host               = std::make_optional(host.substr(0, host_colpos));
+                    auto          port_str = host.substr(host_colpos + 1);
+                    std::uint16_t port     = 0;
+                    auto          conv_res
+                        = std::from_chars(port_str.data(), port_str.data() + port_str.size(), port);
+                    if (conv_res.ec != std::errc{}) {
+                        return url_parse_error{"Invalid port in URL string"};
+                    }
+                    url.port = std::make_optional(port);
+                } else {
+                    url.host = std::make_optional(host);
+                }
+                place = iter;
             }
-            place = iter;
         } else {
             // Not '//' following scheme
             if (opts.authority_required(url.scheme)) {
@@ -265,8 +276,11 @@ public:
             // No scheme, but that's okay for this URL scheme
         }
 
-        while (iter != end && *iter == oper::none_of('?', '#')) {
-            if (!is_url_char(*iter) && *iter != '%') {
+        while (iter != end and *iter == oper::none_of('?', '#')) {
+            if (!is_url_char(*iter)  //
+                and *iter != '%'     //
+                and not(opts.is_special_scheme(url.scheme)
+                        and *iter == neo::oper::any_of('/', '\\'))) {
                 return url_parse_error{"Invalid character in URL string path segment"};
             }
             ++iter;
