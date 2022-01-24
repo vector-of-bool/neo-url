@@ -17,23 +17,6 @@ jobs:
           .\dds.exe build -t tools/msvc.jsonc
         displayName: Build and Run Unit Tests
 
-  - job: linux_gcc9
-    displayName: Linux - GCC 9
-    pool:
-      vmImage: ubuntu-18.04
-    steps:
-      - script: |
-          set -eu
-          sudo apt update -y
-          sudo apt install -y g++-9
-          echo Downloading DDS executable
-          curl -L https://github.com/vector-of-bool/dds/releases/download/0.1.0-alpha.4/dds-linux-x64 -o dds
-          chmod +x dds
-          ./dds catalog add neo-fun@0.5.5 --git-url https://github.com/vector-of-bool/neo-fun.git --git-ref 0.5.5
-        displayName: Prepare System
-      - script: ./dds build -t tools/gcc-9.jsonc
-        displayName: Build and Run Unit Tests
-
   - job: linux_gcc10
     displayName: Linux - GCC 10
     pool:
@@ -51,20 +34,21 @@ jobs:
       - script: ./dds build -t tools/gcc-10.jsonc
         displayName: Build and Run Unit Tests
 
-  - job: macos_gcc9
-    displayName: macOS - GCC 9
+  - job: linux_gcc11
+    displayName: Linux - GCC 11
     pool:
-      vmImage: macOS-10.15
+      vmImage: ubuntu-20.04
     steps:
       - script: |
           set -eu
-          brew install gcc@9
+          sudo apt update -y
+          sudo apt install -y g++-11
           echo Downloading DDS executable
-          curl -L https://github.com/vector-of-bool/dds/releases/download/0.1.0-alpha.4/dds-macos-x64 -o dds
+          curl -L https://github.com/vector-of-bool/dds/releases/download/0.1.0-alpha.4/dds-linux-x64 -o dds
           chmod +x dds
           ./dds catalog add neo-fun@0.5.5 --git-url https://github.com/vector-of-bool/neo-fun.git --git-ref 0.5.5
         displayName: Prepare System
-      - script: ./dds build -t tools/gcc-9.jsonc
+      - script: ./dds build -t tools/gcc-11.jsonc
         displayName: Build and Run Unit Tests
 
   - job: macos_gcc10
@@ -81,4 +65,20 @@ jobs:
           ./dds catalog add neo-fun@0.5.5 --git-url https://github.com/vector-of-bool/neo-fun.git --git-ref 0.5.5
         displayName: Prepare System
       - script: ./dds build -t tools/gcc-10.jsonc
+        displayName: Build and Run Unit Tests
+
+  - job: macos_gcc11
+    displayName: macOS - GCC 11
+    pool:
+      vmImage: macOS-10.15
+    steps:
+      - script: |
+          set -eu
+          brew install gcc@11
+          echo Downloading DDS executable
+          curl -L https://github.com/vector-of-bool/dds/releases/download/0.1.0-alpha.4/dds-macos-x64 -o dds
+          chmod +x dds
+          ./dds catalog add neo-fun@0.5.5 --git-url https://github.com/vector-of-bool/neo-fun.git --git-ref 0.5.5
+        displayName: Prepare System
+      - script: ./dds build -t tools/gcc-11.jsonc
         displayName: Build and Run Unit Tests
